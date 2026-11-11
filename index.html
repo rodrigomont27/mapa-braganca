@@ -1,0 +1,1605 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bragança em Quadrantes</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+:root{ --ink:#14213d; --paper:#fffdf8; --line:#e6e0d2; }
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:"Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--paper)}
+#app{display:grid;grid-template-columns:390px 1fr;height:100%}
+body.proj #app{grid-template-columns:1fr}   /* o painel some (display:none); o mapa passa a ser o único item e ocupa a tela toda */
+body.proj #panel{display:none}
+#panel{overflow:auto;padding:18px 18px 28px;border-right:3px solid var(--ink);background:var(--paper)}
+h1{margin:0;font-size:25px;line-height:1.1;letter-spacing:-.5px}
+h1 small{display:block;font-size:12.5px;font-weight:600;color:#6b6b6b;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px}
+.sub{margin:8px 0 12px;font-size:14px;color:#4a4a4a}
+h3{margin:18px 0 8px;font-size:12.5px;letter-spacing:.1em;text-transform:uppercase;color:#6b6b6b;border-top:2px solid var(--line);padding-top:12px}
+.btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+button{font:inherit;font-weight:700;font-size:13px;border:2px solid var(--ink);background:#fff;color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;transition:transform .08s,background .15s}
+button:hover{transform:translateY(-1px);background:#f1ede2}
+button.on{background:var(--ink);color:#fff}
+.chip{border-color:var(--c);color:#333;background:#fff;opacity:.55}
+.chip.on{background:var(--c);color:#fff;opacity:1;text-shadow:0 1px 1px rgba(0,0,0,.35)}
+.chip:hover{background:var(--c);color:#fff}
+.card{border:3px solid var(--c);border-radius:14px;margin-bottom:12px;overflow:hidden;background:#fff;cursor:pointer;transition:box-shadow .15s,opacity .2s}
+.card:hover{box-shadow:0 4px 0 var(--c)}
+.card.dim{opacity:.35}
+.card h2{margin:0;padding:8px 12px;background:var(--c);color:#fff;font-size:17px;display:flex;justify-content:space-between;align-items:center}
+.card h2 span{font-weight:500;font-size:12px;opacity:.9}
+.card ul{list-style:none;margin:0;padding:6px 8px}
+.card li{display:flex;justify-content:space-between;gap:8px;padding:5px 4px;font-size:14px;border-bottom:1px dashed var(--line);cursor:pointer}
+.card li:last-child{border:0}
+.card li:hover b{text-decoration:underline}
+.card li i{font-style:normal;font-variant-numeric:tabular-nums;color:#666;font-size:12.5px;white-space:nowrap}
+.hint{font-size:12px;color:#666;margin-top:10px;line-height:1.7}
+.nota{font-size:12px;color:#666;margin:4px 0 8px;line-height:1.45}
+kbd{background:#fff;border:1.5px solid var(--ink);border-bottom-width:3px;border-radius:5px;padding:0 5px;font-size:11px;font-weight:700}
+table.res{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0 10px;font-variant-numeric:tabular-nums}
+table.res th,table.res td{border:1px solid var(--line);padding:4px 6px;text-align:center}
+table.res th:first-child,table.res td:first-child{text-align:left;font-weight:700}
+table.res .dot{display:inline-block;width:12px;height:12px;border-radius:50%;border:1.5px solid var(--ink);vertical-align:-1px}
+table.res tr.tot td{font-weight:800;background:#f6f2e6}
+#map{height:100%;width:100%;background:#cfe3ef}
+
+/* marcadores (o wrapper é posicionado pelo MapLibre; o efeito visual fica no filho) */
+.pin{display:flex;align-items:center;gap:6px;white-space:nowrap;transition:opacity .25s,transform .25s;transform-origin:14px 50%}
+.pin .dot{width:26px;height:26px;border-radius:7px;background:var(--c);color:#fff;font-weight:800;font-size:14px;display:grid;place-items:center;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.pin .tag{background:#fff;color:var(--ink);border:2.5px solid var(--c);border-radius:8px;padding:2px 8px;font-weight:700;font-size:15px;box-shadow:0 2px 5px rgba(0,0,0,.3)}
+body.proj .pin .tag{font-size:19px;padding:3px 10px}
+.pin.hide{opacity:0;transform:scale(.2);pointer-events:none}
+.pin.dim{opacity:.25}
+.qnum{font-weight:900;font-size:min(20vh,170px);line-height:1;color:var(--c);opacity:.5;pointer-events:none;-webkit-text-stroke:3px #fff;paint-order:stroke fill;transition:opacity .3s}
+.qnum.dim{opacity:.12}
+.school{position:relative;width:26px;height:26px}
+.school .ring{position:absolute;inset:0;border-radius:50%;border:4px solid var(--ink);animation:pulse 1.8s ease-out infinite}
+.school .core{position:relative;width:26px;height:26px;border-radius:50%;background:var(--ink);border:4px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.6);display:grid;place-items:center;color:#fff;font-size:13px;font-weight:900}
+.school .lbl{position:absolute;top:34px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;font-weight:800;padding:3px 10px;border-radius:8px;white-space:nowrap;font-size:15px;border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+@keyframes pulse{0%{transform:scale(1);opacity:.9}100%{transform:scale(3.2);opacity:0}}
+.axlbl{font-weight:900;font-size:15px;color:var(--ink);background:#fff;border:2.5px solid var(--ink);border-radius:8px;padding:1px 8px;white-space:nowrap}
+.tick{width:12px;height:12px;border-radius:50%;background:#fff;border:2.5px solid var(--ink)}
+.ticklbl{font:800 12px sans-serif;background:#fffd;padding:0 4px;border-radius:4px;white-space:nowrap}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(30px);background:var(--ink);color:#fff;padding:8px 16px;border-radius:999px;font-weight:700;opacity:0;transition:.25s;z-index:4000;pointer-events:none;max-width:92vw;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%)}
+#editbar{display:none;position:fixed;top:12px;right:12px;z-index:1500;background:#fff;border:3px solid var(--ink);border-radius:12px;padding:8px 10px;font-size:13px;font-weight:600}
+body.edit #editbar{display:block}
+.maplibregl-ctrl-attrib{font-size:11px}
+.del{display:none;margin-left:6px;color:#c92a2a;font-weight:900;cursor:pointer;font-style:normal}
+body.edit .del{display:inline}
+body.adding #map canvas{cursor:crosshair}
+.dialog{display:none;position:fixed;left:50%;top:16%;transform:translateX(-50%);z-index:3000;background:#fff;border:3px solid var(--ink);border-radius:14px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.4);width:min(460px,92vw)}
+.dialog>b{display:block;margin-bottom:8px}
+.dialog input{width:100%;font:inherit;font-size:16px;padding:8px 10px;border:2px solid var(--ink);border-radius:8px;margin-bottom:8px}
+.dialog label{display:block;font-size:12px;font-weight:700;color:#555;margin-bottom:3px}
+.dialog .row{display:flex;gap:8px;margin-top:4px;justify-content:flex-end}
+.dialog .q{font-weight:800}
+.sopts{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.sopts button{border-radius:10px;text-align:left;font-size:12.5px;line-height:1.25}
+#quadbig{display:none;position:absolute;left:50%;top:14%;transform:translateX(-50%);z-index:10;pointer-events:none;background:#fff;border:8px solid var(--c);border-radius:26px;padding:14px 36px 18px;text-align:center;box-shadow:0 14px 40px rgba(0,0,0,.45);white-space:nowrap}
+#quadbig small{display:block;font-size:20px;font-weight:700;color:#555}
+#quadbig b{display:block;font-size:min(13vh,110px);line-height:1;color:var(--c);font-weight:900}
+#quadbig span{display:block;font-size:20px;font-weight:700;margin-top:6px}
+#quadbig em{display:block;font-style:normal;font-size:16px;font-weight:700;color:#c92a2a;margin-top:6px}
+.pop{font:14px "Segoe UI",system-ui,sans-serif;max-width:260px}
+.pop strong{font-size:15px}
+.pop p{margin:4px 0 6px}
+.pop small{display:block;color:#666;margin-bottom:8px}
+.pop button{font-size:12px;padding:3px 10px;border-color:#c92a2a;color:#c92a2a}
+.pop ul{list-style:none;margin:4px 0 0;padding:0;max-height:220px;overflow:auto}
+.pop li{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:4px 0;border-top:1px dashed #ddd;font-size:13px}
+.pop li button{flex:none;padding:1px 8px}
+.pop li .acoes{flex:none;display:flex;gap:4px}
+.pop button.mov{border-color:var(--ink);color:var(--ink)}
+.bub{border-radius:50%;background:var(--c);border:3px solid #14213d;color:#fff;font-weight:900;display:grid;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.45);cursor:pointer;text-shadow:0 1px 2px rgba(0,0,0,.55);transition:opacity .2s,transform .1s;font-variant-numeric:tabular-nums}
+.bub:hover{transform:scale(1.12)}
+.bub.am{color:#14213d;text-shadow:none}
+.bub.dim{opacity:.18}
+body.proj .bub{font-size:1.15em}
+.dialog .chk{display:flex;gap:8px;align-items:flex-start;font-size:13px;font-weight:600;color:#333;margin:0 0 10px;cursor:pointer}
+.dialog .chk input{width:auto;margin:2px 0 0;flex:none}
+#respbox{left:12px;top:10px;transform:none;width:min(366px,94vw);max-height:calc(100vh - 20px);overflow:auto}
+#respbox input{font-size:15px;padding:6px 9px;margin-bottom:6px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.onde{border-top:2px solid var(--line);margin-top:4px;padding-top:8px}
+.local{font-size:12.5px;font-weight:700;border-radius:8px;padding:6px 8px;margin:2px 0 8px;display:none}
+.local.ok{display:block;background:#e6f4ea;color:#1e6b34}
+.local.falta{display:block;background:#fff0f0;color:#c92a2a}
+#rbFormBtns{display:none;gap:6px}
+#rbFormBtns button{padding:5px 9px;font-size:12px}
+#impbar{display:none;position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:12;background:#fff;border:3px solid var(--ink);border-radius:14px;padding:10px 14px;box-shadow:0 10px 30px rgba(0,0,0,.4);max-width:92%;text-align:center;font-size:14px}
+#impbar b{display:block;font-size:17px;margin-bottom:2px}
+#movbar{display:none;position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:12;background:#fff;border:3px solid var(--ink);border-radius:14px;padding:10px 14px;box-shadow:0 10px 30px rgba(0,0,0,.4);width:min(430px,92%);text-align:center;font-size:14px}
+#movbar b{display:block;font-size:17px;margin-bottom:2px}
+#movbar small{display:block;color:#555;margin-bottom:8px;line-height:1.4}
+#movbar input{width:100%;font:inherit;font-size:15px;padding:6px 9px;border:2px solid var(--ink);border-radius:8px;margin-bottom:8px;text-align:center}
+#movbar .btns{justify-content:center;margin:0}
+.coordrow{display:flex;gap:6px;align-items:flex-start}
+.coordrow button{flex:none;padding:7px 10px;font-size:12px;white-space:nowrap}
+#impbar small{display:block;color:#555;margin-bottom:8px}
+#impbar .btns{justify-content:center;margin:0}
+#impbox p{margin:0 0 8px;font-size:14px;line-height:1.45}
+#impbox ul{margin:0 0 10px;padding-left:18px;font-size:13px;max-height:200px;overflow:auto;color:#444}
+#alunobox{left:12px;top:10px;transform:none;width:min(366px,94vw)}
+#alunobox input{font-size:15px;padding:6px 9px;margin-bottom:6px}
+#alFormBtns button{padding:5px 9px;font-size:12px}
+.chipA{--c:#e03131}
+.alu{background:#e03131;color:#fff;border:2.5px solid #fff;border-radius:999px;padding:1px 9px 2px;font-weight:900;font-size:13px;line-height:1.3;box-shadow:0 2px 6px rgba(0,0,0,.5);cursor:pointer;white-space:nowrap;position:relative;font-variant-numeric:tabular-nums;transition:opacity .2s}
+.alu::after{content:"";position:absolute;left:50%;bottom:-8px;margin-left:-6px;border:6px solid transparent;border-top-color:#e03131;border-bottom:0}
+.aluw{transition:opacity .2s}
+.aluw.dim{opacity:.18}
+body.proj .alu{font-size:17px}
+body.edit .alu{cursor:move;outline:2px dashed #14213d;outline-offset:2px}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="panel">
+    <h1><small>Juventude e direito à cidade</small>Nossa cidade, nossos direitos</h1>
+    <p class="sub">Origem <b>(0, 0)</b> = Escola Leandro Lobão. Em qual quadrante fica a sua casa?</p>
+
+    <div class="btns">
+      <button id="bAll" class="on">Todos</button>
+      <button id="bReveal">Ocultar pontos</button>
+      <button id="bSat">Satélite</button>
+      <button id="b3d">Visão 3D</button>
+      <button id="bOrbit">Girar</button>
+      <button id="bEarth">🌍 Google Earth</button>
+      <button id="bProj">Modo projeção</button>
+    </div>
+
+    <h3>1º encontro — formar os grupos</h3>
+    <div class="btns"><button id="bQuad">❓ Qual é o quadrante?</button></div>
+    <p class="nota">Ligue e clique no ponto de referência que o aluno citou: o número do quadrante aparece grande na tela.</p>
+
+    <h3>Distribuição da turma (onde os alunos moram)</h3>
+    <div class="btns">
+      <button id="bAluVer" class="chip chipA on" title="Mostra ou esconde os pinos dos alunos">🏠 Alunos · 0</button>
+      <button id="bAluMapa">➕ Marcar no mapa</button>
+      <button id="bAluForm">📝 Inserir por endereço</button>
+      <button id="bAluImp">📥 Importar planilha</button>
+      <button id="bAluModelo">📄 Modelo</button>
+    </div>
+    <p class="nota">Um pino por aluno, pelo endereço aproximado da Ficha 1 (bairro e ponto de referência), <b>sem nome</b>. É um cadastro separado do das respostas. Clique num pino vermelho para ver, <b>mover</b> ou excluir um aluno. Em <b>Editar pontos</b>, arraste o pino para mover todos os alunos dele de uma vez.</p>
+    <div id="resumoAlu"></div>
+    <div class="btns">
+      <button id="bAluBanner" title="O mapa se ajusta sozinho para caber todos os alunos, inclusive os da zona rural">🖼 Banner da distribuição</button>
+      <button id="bAluBannerTela" title="Imprime a área do mapa que está na tela agora, inclusive inclinada e girada (Visão 3D): aproxime, afaste ou gire antes de clicar">🖼 Banner do recorte na tela</button>
+      <button id="bAluCsv">⬇ Planilha de alunos</button>
+    </div>
+
+    <h3>Respostas das fichas (adesivos)</h3>
+    <div class="btns" id="chips"></div>
+    <div class="btns">
+      <button id="bResp">➕ Registrar no mapa</button>
+      <button id="bForm">📝 Inserir por endereço</button>
+      <button id="bImp">📥 Importar planilha</button>
+      <button id="bModelo">📄 Modelo de planilha</button>
+    </div>
+    <p class="nota"><b>Por endereço:</b> preencha bairro, rua, ponto de referência, categoria e resposta; a página posiciona sozinha os lugares que já conhece e pergunta só na primeira vez. <b>Planilha:</b> mesmas colunas, em Excel ou CSV.</p>
+    <p class="nota"><b>No mapa:</b> clique no lugar citado, escolha a seção e a resposta. Respostas iguais no mesmo lugar viram <b>uma bolha com o número de citações</b>. Com o registro ligado, clique numa bolha para somar mais uma citação a ela. Sem o registro, clique numa bolha para ler ou excluir. Não se registra o nome do aluno.</p>
+    <div id="resumo"></div>
+    <div class="btns">
+      <button id="bBanner">🖼 Banner 120×90 (PNG)</button>
+      <button id="bCsv">⬇ Planilha (CSV)</button>
+      <button id="bSave">💾 Salvar cópia</button>
+      <button id="bLoad" title="Troca tudo o que está na página pelo que está no arquivo">📂 Abrir cópia</button>
+      <button id="bJunta" title="Soma ao que já está aqui os dados cadastrados por outra pessoa">➕ Juntar cópia</button>
+    </div>
+
+    <h3>Pontos de referência</h3>
+    <div class="btns">
+      <button id="bAdd">➕ Adicionar ponto</button>
+      <button id="bEdit">Editar pontos</button>
+      <button id="bKml">⬇ Exportar KML</button>
+    </div>
+    <div id="cards"></div>
+    <div class="hint">
+      <kbd>1</kbd>–<kbd>4</kbd> destaca o quadrante · <kbd>0</kbd> todos · <kbd>R</kbd> revela/oculta pontos<br>
+      <kbd>Q</kbd> qual é o quadrante · <kbd>M</kbd> registrar no mapa · <kbd>I</kbd> inserir por endereço · <kbd>A</kbd> adicionar ponto<br>
+      <kbd>T</kbd> visão 3D / plano · <kbd>O</kbd> girar · <kbd>N</kbd> norte para cima · <kbd>G</kbd> Google Earth<br>
+      <kbd>P</kbd> projeção · <kbd>S</kbd> satélite · <kbd>E</kbd> editar · <kbd>Esc</kbd> sair<br>
+      No mapa: <b>botão direito + arrastar</b> (ou Ctrl + arrastar) inclina e gira.
+    </div>
+  </aside>
+  <div style="position:relative;min-width:0">
+    <div id="map"></div>
+    <div id="quadbig"></div>
+    <div id="impbar"></div>
+    <div id="movbar"><b>Mover aluno</b><small>Clique no mapa no lugar certo, ou cole as coordenadas copiadas do Google Maps (lá: botão direito no lugar e clique nos números).</small><input id="mvCoord" type="text" maxlength="60" autocomplete="off" placeholder="-1.03864, -46.77015"><div class="btns"><button id="mvOk" class="on">Mover para as coordenadas</button><button id="mvCancel">Cancelar</button></div></div>
+  </div>
+</div>
+<div id="editbar">Arraste os pontos de referência e os pinos dos alunos · ✕ remove na lista. <button id="bCopy">Copiar JSON</button> <button id="bReset">Restaurar originais</button></div>
+<div id="namebox" class="dialog">
+  <b>Novo ponto de referência em <span class="q" id="nbQ"></span></b>
+  <input id="nbInput" type="text" maxlength="60" placeholder="Nome do ponto (ex.: Praça do Coreto)" autocomplete="off">
+  <div class="row"><button id="nbCancel">Cancelar</button><button id="nbOk" class="on">Adicionar</button></div>
+</div>
+<div id="respbox" class="dialog">
+  <b>Nova resposta · <span class="q" id="rbQ"></span></b>
+  <div class="sopts" id="rbSecs"></div>
+  <label for="rbTexto">Resposta: escolha da lista (respostas iguais viram uma bolha só) ou escreva</label>
+  <input id="rbTexto" type="text" maxlength="80" autocomplete="off" list="rbLista">
+  <datalist id="rbLista"></datalist>
+  <label class="chk"><input type="checkbox" id="rbSemLugar"> Sem lugar fixo (ex.: primeiro emprego, calçadas em geral). Conta no quadrante e no ranking, mas não vira bolha no mapa.</label>
+  <label for="rbPorque">Breve porquê (palavras do aluno)</label>
+  <input id="rbPorque" type="text" maxlength="160" autocomplete="off">
+  <div class="onde">
+    <div class="g2">
+      <div><label for="rbBairro">Bairro</label><input id="rbBairro" type="text" maxlength="60" autocomplete="off" list="rbBairros"></div>
+      <div><label for="rbRua">Rua (opcional)</label><input id="rbRua" type="text" maxlength="80" autocomplete="off"></div>
+    </div>
+    <label for="rbRef">Ponto de referência</label>
+    <input id="rbRef" type="text" maxlength="60" autocomplete="off" list="rbRefs">
+    <datalist id="rbBairros"></datalist><datalist id="rbRefs"></datalist>
+    <div id="rbLocal" class="local"></div>
+  </div>
+  <div class="row"><span id="rbFormBtns"><button id="rbBusca" title="Procura a referência, a rua ou o bairro no OpenStreetMap">🔎 Procurar</button><button id="rbMarca">📍 Marcar no mapa</button></span><span style="flex:1"></span><button id="rbCancel">Fechar</button><button id="rbOk" class="on">Registrar</button></div>
+</div>
+<div id="alunobox" class="dialog">
+  <b>Onde mora o aluno · <span class="q" id="alQ"></span></b>
+  <div class="g2">
+    <div><label for="alBairro">Bairro</label><input id="alBairro" type="text" maxlength="60" autocomplete="off" list="rbBairros"></div>
+    <div><label for="alRua">Rua (opcional)</label><input id="alRua" type="text" maxlength="80" autocomplete="off"></div>
+  </div>
+  <label for="alRef">Ponto de referência</label>
+  <input id="alRef" type="text" maxlength="60" autocomplete="off" list="rbRefs">
+  <label for="alCoord">Coordenadas do Google Maps (opcional)</label>
+  <div class="coordrow"><input id="alCoord" type="text" maxlength="60" autocomplete="off" placeholder="-1.03864, -46.77015"><button id="alGoogle" title="Abre o Google Maps em outra aba, pesquisando a rua e o bairro digitados">🌍 Ver no Google</button></div>
+  <div id="alLocal" class="local"></div>
+  <div class="row"><span id="alFormBtns" style="display:none;gap:6px"><button id="alBusca" title="Procura a referência, a rua ou o bairro no OpenStreetMap">🔎 Procurar</button><button id="alMarca">📍 Marcar no mapa</button></span><span style="flex:1"></span><button id="alCancel">Fechar</button><button id="alOk" class="on">Registrar aluno</button></div>
+</div>
+<div id="impbox" class="dialog">
+  <b id="ibTit">Importar planilha</b>
+  <div id="ibTxt"></div>
+  <div class="row"><button id="ibCancel">Cancelar</button><button id="ibOk" class="on">Importar</button></div>
+</div>
+<input id="fileIn" type="file" accept=".json,application/json" style="display:none">
+<input id="sheetIn" type="file" accept=".csv,.txt,.xlsx,.xls,.ods" style="display:none">
+<div id="toast"></div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ============ DADOS (ajuste aqui) ============ */
+const ESCOLA = {lat:-1.0403826, lon:-46.7698227, nome:"Escola Leandro Lobão"};
+
+// Pontos de referência. q: 1=Nordeste (+,+)  2=Noroeste (−,+)  3=Sudoeste (−,−)  4=Sudeste (+,−)
+let PONTOS = [
+  {q:1,nome:"Escola Maria Helena S. de Aviz", lat:-1.02999,lon:-46.75290,ok:true},
+  {q:1,nome:"Igreja São Raimundo Nonato",     lat:-1.00616,lon:-46.76898,ok:true},
+  {q:2,nome:"Penitenciária",                  lat:-1.01407,lon:-46.77171,ok:true},
+  {q:3,nome:"Igreja N. Sra. Perpétuo Socorro",lat:-1.04607,lon:-46.77042,ok:true},
+  {q:3,nome:"Aeroporto JK",                   lat:-1.04526,lon:-46.78208,ok:true},
+  {q:3,nome:"IFPA Bragança",                  lat:-1.05569,lon:-46.78504,ok:true},
+  {q:3,nome:"Praça Daniel Berg",              lat:-1.05848,lon:-46.77088,ok:true},
+  {q:3,nome:"UFPA Campus II",                 lat:-1.07135,lon:-46.78519,ok:true},
+  {q:4,nome:"Hospital Sto. Antônio Zaccaria", lat:-1.05027,lon:-46.76874,ok:true},
+  {q:4,nome:"UFPA Campus I",                  lat:-1.04964,lon:-46.76104,ok:true},
+  {q:4,nome:"Catedral N. Sra. do Rosário",    lat:-1.05563,lon:-46.76616,ok:true},
+  {q:4,nome:"Rodoviária",                     lat:-1.05853,lon:-46.76744,ok:true},
+  {q:4,nome:"Orla de Bragança",               lat:-1.05738,lon:-46.76223,ok:true},
+  {q:4,nome:"Mirante São Benedito",           lat:-1.04934,lon:-46.75131,ok:true},
+];
+const Q = {
+  1:{nome:"Quadrante 1",dir:"Nordeste (+, +)"},
+  2:{nome:"Quadrante 2",dir:"Noroeste (−, +)"},
+  3:{nome:"Quadrante 3",dir:"Sudoeste (−, −)"},
+  4:{nome:"Quadrante 4",dir:"Sudeste (+, −)"},
+};
+// Cores dos quadrantes: de propósito diferentes das quatro cores dos adesivos
+const COR = {1:"#7048e8",2:"#c2255c",3:"#495057",4:"#8d5a2b"};
+// Seções do questionário = cores dos adesivos (Etapa 2 do projeto)
+const SEC = {
+  1:{nome:"Lugares que usa e valoriza",       curto:"Lugares",  adesivo:"Verde",  cor:"#2f9e44"},
+  2:{nome:"Serviços públicos que utiliza",    curto:"Serviços", adesivo:"Azul",   cor:"#1c7ed6"},
+  3:{nome:"Aspectos que poderiam melhorar",   curto:"Melhorar", adesivo:"Amarelo",cor:"#f5b800"},
+  4:{nome:"Oportunidades que fazem falta",    curto:"Faltam",   adesivo:"Laranja",cor:"#f76707"},
+};
+// Respostas padronizadas sugeridas na caixa de registro (a equipe pode escrever outra)
+const CATEG = {
+  1:["Praça","Orla","Quadra de esporte","Campo de futebol","Igreja","Escola","Feira","Balneário / igarapé","Espaço cultural","Casa de amigos ou parentes"],
+  2:["Posto de saúde (UBS)","Hospital","Escola","Ônibus / transporte","CRAS / assistência social","Biblioteca","Segurança / polícia","Coleta de lixo"],
+  3:["Iluminação","Calçadas","Asfalto / buracos","Saneamento / esgoto","Parada de ônibus / transporte","Segurança","Limpeza / lixo","Espaço de lazer e esporte","Internet / wi-fi","Acessibilidade"],
+  4:["Cursos técnicos / profissionalizantes","Primeiro emprego / estágio","Esporte com professor","Cultura (música, dança, teatro)","Pré-vestibular gratuito","Transporte até o centro","Espaço para jovens","Informática / internet"],
+};
+// Títulos usados no banner
+const TITB = {1:"Onde a juventude se encontra",2:"Que serviços públicos usa",3:"O que precisa melhorar",4:"Que oportunidades faltam"};
+const RAIO_GRUPO = 0.35;   // km: respostas iguais a menos que isso viram a mesma bolha
+/* ============================================= */
+
+// tudo fica salvo neste navegador (localStorage); use "Salvar cópia" para levar a outro computador
+const PADRAO = JSON.parse(JSON.stringify(PONTOS));
+const CHAVE = "pontos-braganca-v1", CHAVE_R = "respostas-braganca-v1";
+let RESP = [];   // {id, sec, lat, lon, texto, porque, semLugar?, bairro?, rua?, ref?}  — sem nome de aluno
+// Lugares que a página já sabe onde ficam (bairros e referências). Cresce conforme a equipe marca no mapa.
+const CHAVE_L = "lugares-braganca-v1";
+let LUG = [
+  {tipo:"bairro",nome:"Perpétuo Socorro",lat:-1.04149,lon:-46.77267},
+  {tipo:"bairro",nome:"Morro",           lat:-1.06706,lon:-46.76893},
+];
+try{ const s=JSON.parse(localStorage.getItem(CHAVE_L)||"null"); if(Array.isArray(s)&&s.length) LUG=s; }catch(e){}
+// Onde os alunos moram: endereço aproximado, sem nome. Cadastro separado do das respostas.
+const CHAVE_A = "alunos-braganca-v1";
+let ALUNOS = [];   // {id, lat, lon, bairro?, rua?, ref?}
+try{ const s=JSON.parse(localStorage.getItem(CHAVE_A)||"null"); if(Array.isArray(s)) ALUNOS=s; }catch(e){}
+try{ const s=JSON.parse(localStorage.getItem(CHAVE)||"null"); if(Array.isArray(s)&&s.length) PONTOS=s; }catch(e){}
+try{ const s=JSON.parse(localStorage.getItem(CHAVE_R)||"null"); if(Array.isArray(s)) RESP=s; }catch(e){}
+function salvar(){ try{ localStorage.setItem(CHAVE,JSON.stringify(PONTOS)); localStorage.setItem(CHAVE_R,JSON.stringify(RESP)); localStorage.setItem(CHAVE_L,JSON.stringify(LUG)); localStorage.setItem(CHAVE_A,JSON.stringify(ALUNOS)); }catch(e){} }
+
+const D = 0.024;                       // meia-largura dos quadrantes (graus, ~2,6 km)
+const KX = 111.32*Math.cos(ESCOLA.lat*Math.PI/180), KY = 110.57; // km por grau
+const km = p => ({ x:+((p.lon-ESCOLA.lon)*KX).toFixed(1), y:+((p.lat-ESCOLA.lat)*KY).toFixed(1) });
+const fmt = n => (n>0?"+":n<0?"−":"")+Math.abs(n).toFixed(1).replace(".",",");
+const quadrante = p => p.lon>=ESCOLA.lon ? (p.lat>=ESCOLA.lat?1:4) : (p.lat>=ESCOLA.lat?2:3);
+const O = [ESCOLA.lon,ESCOLA.lat];
+const rb = {   // caixa [oeste,sul,leste,norte] de cada quadrante
+  1:[ESCOLA.lon, ESCOLA.lat, ESCOLA.lon+D, ESCOLA.lat+D],
+  2:[ESCOLA.lon-D, ESCOLA.lat, ESCOLA.lon, ESCOLA.lat+D],
+  3:[ESCOLA.lon-D, ESCOLA.lat-D, ESCOLA.lon, ESCOLA.lat],
+  4:[ESCOLA.lon, ESCOLA.lat-D, ESCOLA.lon+D, ESCOLA.lat],
+};
+const ALL = [ESCOLA.lon-D, ESCOLA.lat-D, ESCOLA.lon+D, ESCOLA.lat+D];
+const box = ([w,s,e,n]) => [[w,s],[e,n]];
+const poly = ([w,s,e,n]) => ({type:"Feature",geometry:{type:"Polygon",coordinates:[[[w,s],[e,s],[e,n],[w,n],[w,s]]]}});
+const nOff = {1:[.55,.35],2:[-.55,.35],3:[-.55,-.35],4:[.55,-.35]};   // posição do numeral grande
+
+// ---------- mapa ----------
+const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/";
+function estilo(sat,k){   // k = fator de espessura (1 na tela, maior no banner)
+  return {
+    version:8,
+    sources:{
+      street:{type:"raster",tiles:[ESRI+"World_Street_Map/MapServer/tile/{z}/{y}/{x}"],tileSize:256,maxzoom:17,attribution:"Mapa © Esri, HERE, Garmin, OpenStreetMap"},
+      sat:{type:"raster",tiles:[ESRI+"World_Imagery/MapServer/tile/{z}/{y}/{x}"],tileSize:256,maxzoom:17,attribution:"Imagens © Esri"},
+      eixos:{type:"geojson",data:{type:"FeatureCollection",features:[
+        {type:"Feature",geometry:{type:"LineString",coordinates:[[ESCOLA.lon,ESCOLA.lat-D],[ESCOLA.lon,ESCOLA.lat+D]]}},
+        {type:"Feature",geometry:{type:"LineString",coordinates:[[ESCOLA.lon-D,ESCOLA.lat],[ESCOLA.lon+D,ESCOLA.lat]]}}]}},
+      q1:{type:"geojson",data:poly(rb[1])},q2:{type:"geojson",data:poly(rb[2])},
+      q3:{type:"geojson",data:poly(rb[3])},q4:{type:"geojson",data:poly(rb[4])},
+    },
+    layers:[
+      {id:"street",type:"raster",source:"street",layout:{visibility:sat?"none":"visible"}},
+      {id:"sat",type:"raster",source:"sat",layout:{visibility:sat?"visible":"none"}},
+      ...[1,2,3,4].map(q=>({id:"q"+q,type:"fill",source:"q"+q,paint:{"fill-color":COR[q],"fill-opacity":0.16}})),
+      {id:"eixos-borda",type:"line",source:"eixos",paint:{"line-color":"#ffffff","line-width":8*k,"line-opacity":0.8}},
+      {id:"eixos",type:"line",source:"eixos",paint:{"line-color":"#14213d","line-width":4*k}},
+    ]
+  };
+}
+const map = new maplibregl.Map({ container:"map", style:estilo(false,1), center:O, zoom:12.5, maxZoom:19, maxPitch:75, attributionControl:{compact:true} });
+map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),"bottom-right");
+map.addControl(new maplibregl.ScaleControl({unit:"metric"}),"bottom-left");
+
+const addMk = (html,lngLat,cls,anchor="center",offset=[0,0]) => {
+  const el=document.createElement("div"); if(cls) el.className=cls; el.innerHTML=html;
+  return new maplibregl.Marker({element:el,anchor,offset}).setLngLat(lngLat).addTo(map);
+};
+const qnum = {};
+for(const k of [1,2,3,4]) qnum[k]=addMk(`<div class="qnum" style="--c:${COR[k]}">${k}</div>`,[ESCOLA.lon+nOff[k][0]*D,ESCOLA.lat+nOff[k][1]*D]);
+const EIXOS_LBL = [["N ↑ (+y)",ESCOLA.lon,ESCOLA.lat+D*.94],["S ↓ (−y)",ESCOLA.lon,ESCOLA.lat-D*.94],["L → (+x)",ESCOLA.lon+D*.92,ESCOLA.lat],["← O (−x)",ESCOLA.lon-D*.92,ESCOLA.lat]];
+EIXOS_LBL.forEach(([t,x,y])=>addMk(`<div class="axlbl">${t}</div>`,[x,y]));
+for(let i=-2;i<=2;i++){ if(!i) continue;
+  addMk('<div class="tick"></div>',[ESCOLA.lon+i/KX,ESCOLA.lat]);
+  addMk('<div class="tick"></div>',[ESCOLA.lon,ESCOLA.lat+i/KY]);
+  addMk(`<div class="ticklbl">${i} km</div>`,[ESCOLA.lon+i/KX,ESCOLA.lat],"","top",[0,10]);
+  addMk(`<div class="ticklbl">${i} km</div>`,[ESCOLA.lon,ESCOLA.lat+i/KY],"","left",[12,0]);
+}
+addMk(`<div class="school"><div class="ring"></div><div class="core">0</div><div class="lbl">🏫 ${esc(ESCOLA.nome)} (0, 0)</div></div>`,O).getElement().style.zIndex=5;
+
+// ---------- pontos de referência ----------
+let markers=[], hidden=false, focus=0, edit=false, pronto=false;
+function pinHTML(p){ return `<div class="pin" style="--c:${COR[p.q]}"><div class="dot">${p.q}</div><div class="tag">${esc(p.nome)}</div></div>`; }
+function build(){
+  markers.forEach(m=>m.remove()); markers=[];
+  PONTOS.forEach(p=>{
+    const el=document.createElement("div"); el.innerHTML=pinHTML(p);
+    const m=new maplibregl.Marker({element:el,anchor:"left",offset:[-14,0],draggable:edit}).setLngLat([p.lon,p.lat]).addTo(map);
+    m.on("dragend",()=>{ const ll=m.getLngLat(); p.lat=ll.lat; p.lon=ll.lng; p.q=quadrante(p); p.ok=true; el.innerHTML=pinHTML(p); salvar(); renderCards(); applyState(); });
+    el.style.zIndex=3; markers.push(m);
+  });
+  applyState();
+}
+function applyState(){
+  markers.forEach((m,i)=>{
+    const pin=m.getElement().querySelector(".pin"); if(!pin) return;
+    pin.classList.toggle("hide",hidden);
+    pin.classList.toggle("dim",!!focus && PONTOS[i].q!==focus);
+  });
+  bubs.forEach(m=>m.getElement().classList.toggle("dim",!!focus && m.getElement()._q!==focus));
+  alus.forEach(m=>m.getElement().classList.toggle("dim",!!focus && m.getElement()._q!==focus));
+  for(const k of [1,2,3,4]){
+    if(pronto) map.setPaintProperty("q"+k,"fill-opacity",!focus?0.16:(focus===k?0.34:0.04));
+    qnum[k].getElement().querySelector(".qnum").classList.toggle("dim",!!focus&&focus!==k);
+  }
+  document.querySelectorAll(".card").forEach(c=>c.classList.toggle("dim",!!focus && +c.dataset.q!==focus));
+  $("bAll").classList.toggle("on",!focus);
+  $("bReveal").textContent = hidden?"Revelar pontos":"Ocultar pontos";
+  $("bReveal").classList.toggle("on",hidden);
+}
+function renderCards(){
+  const boxEl=$("cards"); boxEl.innerHTML="";
+  for(const k of [1,2,3,4]){
+    const pts=PONTOS.filter(p=>p.q===k);
+    const d=document.createElement("div"); d.className="card"; d.dataset.q=k; d.style.setProperty("--c",COR[k]);
+    d.innerHTML=`<h2>${Q[k].nome}<span>${Q[k].dir}</span></h2><ul>${pts.map(p=>{const c=km(p);const i=PONTOS.indexOf(p);return `<li data-i="${i}"><b>${esc(p.nome)}</b><i>(${fmt(c.x)} ; ${fmt(c.y)})<span class="del" data-i="${i}" title="Remover">✕</span></i></li>`}).join("")}</ul>`;
+    d.addEventListener("click",e=>{
+      const del=e.target.closest(".del");
+      if(del){ removePonto(+del.dataset.i); e.stopPropagation(); return; }
+      const li=e.target.closest("li");
+      if(li){ const p=PONTOS[+li.dataset.i]; map.flyTo({center:[p.lon,p.lat],zoom:16.5,duration:900}); e.stopPropagation(); return; }
+      setFocus(focus===k?0:k);
+    });
+    boxEl.appendChild(d);
+  }
+}
+const pad = () => document.body.classList.contains("proj") ? 30 : 40;
+function fit(bb,opts={}){ map.fitBounds(box(bb),{padding:pad(),duration:900,pitch:map.getPitch(),bearing:map.getBearing(),...opts}); }
+function setFocus(k){ focus=k; fit(k?rb[k]:ALL); if(k) toast(`${Q[k].nome} — ${Q[k].dir}`); applyState(); }
+
+// ---------- respostas (adesivos) ----------
+const vis = {1:true,2:true,3:true,4:true};
+let secAtual = 1;
+const chave = t => String(t).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ").trim();
+const distKm = (a,b) => Math.hypot((a.lon-b.lon)*KX,(a.lat-b.lat)*KY);
+const corTxt = s => s===3 ? "#a67c00" : SEC[s].cor;
+function grafia(lista){   // a grafia mais usada entre respostas equivalentes
+  const c=new Map(); lista.forEach(r=>{ const t=r.texto.trim(); c.set(t,(c.get(t)||0)+1); });
+  return [...c.entries()].sort((a,b)=>b[1]-a[1])[0][0];
+}
+// junta respostas iguais (mesma seção, mesmo texto) que estão perto umas das outras
+function grupos(lista){
+  const out=[];
+  lista.filter(r=>!r.semLugar).forEach(r=>{
+    const k=chave(r.texto);
+    const g=out.find(o=>o.sec===r.sec&&o.k===k&&distKm(o,r)<RAIO_GRUPO);
+    if(g){ g.itens.push(r); const n=g.itens.length; g.lat=(g.lat*(n-1)+r.lat)/n; g.lon=(g.lon*(n-1)+r.lon)/n; }
+    else out.push({sec:r.sec,k,texto:r.texto.trim(),lat:r.lat,lon:r.lon,itens:[r]});
+  });
+  out.forEach(g=>{ g.n=g.itens.length; g.q=quadrante(g); g.texto=grafia(g.itens); });
+  return out.sort((a,b)=>b.n-a.n);
+}
+let bubs=[], alus=[], verAlunos=true;
+const raioBolha = n => Math.round(11+7*Math.sqrt(n));
+function buildBubs(){
+  bubs.forEach(m=>m.remove()); bubs=[];
+  if(!pronto) return;
+  const gs=grupos(RESP.filter(r=>vis[r.sec]));
+  // bolhas no mesmo lugar (ex.: várias respostas do mesmo bairro) abrem em roda em volta da maior
+  gs.forEach((g,i)=>{ const perto=gs.slice(0,i).filter(o=>distKm(o,g)<0.08); g.pilha=perto.length; g.centro=perto[0]; });
+  const desloca=g=>{ if(!g.pilha) return [0,0];
+    const R=raioBolha(g.centro.n)+raioBolha(g.n)-5+(g.pilha>6?2*raioBolha(g.n):0), a=(g.pilha-1)*Math.PI/3+(g.pilha>6?Math.PI/6:0)-Math.PI/2;
+    return [Math.round(Math.cos(a)*R),Math.round(Math.sin(a)*R)]; };
+  [...gs].reverse().forEach(g=>{   // as maiores primeiro no fundo, as menores por cima
+    const r=raioBolha(g.n), el=document.createElement("div");
+    el.className="bub"+(g.sec===3?" am":""); el.style.setProperty("--c",SEC[g.sec].cor);
+    el.style.width=el.style.height=(2*r)+"px"; el.style.fontSize=Math.max(11,Math.round(r*0.85))+"px";
+    el.textContent=g.n; el.title=`${g.texto} (${g.n})`; el._q=g.q;
+    el.addEventListener("click",e=>{ e.stopPropagation();
+      if(caixaAberta()) return;
+      if(modo==="resp"){ secAtual=g.sec; abrirResp({lng:g.lon,lat:g.lat},g.texto); }
+      else if(!modo) popupGrupo(g);
+    });
+    const m=new maplibregl.Marker({element:el,offset:desloca(g)}).setLngLat([g.lon,g.lat]).addTo(map);
+    el.style.zIndex=4;
+    bubs.push(m);
+  });
+  applyState();
+}
+function conta(){ const c={}; for(const q of [1,2,3,4]){ c[q]={1:0,2:0,3:0,4:0}; } RESP.forEach(r=>{ c[quadrante(r)][r.sec]++; }); return c; }
+function renderResp(){
+  buildBubs();
+  const c=conta(), totS=s=>[1,2,3,4].reduce((a,q)=>a+c[q][s],0);
+  $("chips").innerHTML=[1,2,3,4].map(s=>`<button class="chip ${vis[s]?"on":""}" data-s="${s}" style="--c:${SEC[s].cor}" title="${esc(SEC[s].nome)}">${SEC[s].curto} · ${totS(s)}</button>`).join("");
+  $("resumo").innerHTML=`<table class="res"><tr><th>Quadrante</th>${[1,2,3,4].map(s=>`<th title="${esc(SEC[s].nome)}"><span class="dot" style="background:${SEC[s].cor}"></span></th>`).join("")}<th>Total</th></tr>`+
+    [1,2,3,4].map(q=>`<tr><td style="color:${COR[q]}">Q${q}</td>${[1,2,3,4].map(s=>`<td>${c[q][s]}</td>`).join("")}<td><b>${[1,2,3,4].reduce((a,s)=>a+c[q][s],0)}</b></td></tr>`).join("")+
+    `<tr class="tot"><td>Total</td>${[1,2,3,4].map(s=>`<td>${totS(s)}</td>`).join("")}<td>${RESP.length}</td></tr></table>`;
+}
+$("chips").addEventListener("click",e=>{ const b=e.target.closest(".chip"); if(!b) return; const s=+b.dataset.s; vis[s]=!vis[s]; renderResp(); });
+function maisCitados(sec,n){   // conta todas as respostas da seção, com ou sem lugar fixo
+  const m=new Map();
+  RESP.filter(r=>r.sec===sec).forEach(r=>{ const k=chave(r.texto); const o=m.get(k)||{itens:[],n:0}; o.n++; o.itens.push(r); m.set(k,o); });
+  return [...m.values()].map(o=>({t:grafia(o.itens),n:o.n})).sort((a,b)=>b.n-a.n).slice(0,n);
+}
+let popup=null;
+function popupGrupo(g){
+  const d=document.createElement("div"); d.className="pop";
+  d.innerHTML=`<strong></strong><small></small><ul></ul>`;
+  const st=d.querySelector("strong"); st.textContent=`${g.texto} · ${g.n} ${g.n>1?"citações":"citação"}`; st.style.color=corTxt(g.sec);
+  d.querySelector("small").textContent=`${SEC[g.sec].adesivo} · ${SEC[g.sec].nome} · ${Q[g.q].nome}`;
+  const ul=d.querySelector("ul");
+  g.itens.forEach(r=>{ const li=document.createElement("li"); const sp=document.createElement("span");
+    sp.textContent=(r.porque?`“${r.porque}”`:"(sem porquê)")+(r.bairro?` — ${r.bairro}`:""); const b=document.createElement("button"); b.textContent="Excluir";
+    b.onclick=()=>{ RESP=RESP.filter(x=>x.id!==r.id); salvar(); renderResp(); if(popup) popup.remove(); toast("Resposta excluída"); };
+    li.append(sp,b); ul.appendChild(li); });
+  if(popup) popup.remove();
+  popup=new maplibregl.Popup({offset:raioBolha(g.n)+4,maxWidth:"320px"}).setLngLat([g.lon,g.lat]).setDOMContent(d).addTo(map);
+}
+function popupResp(id){
+  const r=RESP.find(x=>x.id===id); if(!r) return;
+  const d=document.createElement("div"); d.className="pop";
+  const c=km(r);
+  d.innerHTML=`<strong></strong><p></p><small></small><button>Excluir resposta</button>`;
+  d.querySelector("strong").textContent=r.texto; d.querySelector("strong").style.color=SEC[r.sec].cor==="#f5b800"?"#a67c00":SEC[r.sec].cor;
+  d.querySelector("p").textContent=r.porque?`“${r.porque}”`:"(sem porquê registrado)";
+  d.querySelector("small").textContent=`${SEC[r.sec].adesivo} · ${SEC[r.sec].nome} · ${Q[quadrante(r)].nome} (${fmt(c.x)} ; ${fmt(c.y)})`;
+  d.querySelector("button").onclick=()=>{ RESP=RESP.filter(x=>x.id!==id); salvar(); renderResp(); if(popup) popup.remove(); toast("Resposta excluída"); };
+  if(popup) popup.remove();
+  popup=new maplibregl.Popup({offset:14,maxWidth:"300px"}).setLngLat([r.lon,r.lat]).setDOMContent(d).addTo(map);
+}
+
+// ---------- modos de clique no mapa: ponto de referência / resposta / qual quadrante ----------
+let modo=null, pendente=null, mkQuad=null, tQuad=0;
+const caixaAberta = () => ["namebox","respbox","impbox","alunobox"].some(i=>$(i).style.display==="block");
+let formModo=false, marcando=false, mkTmp=null, imp=null;
+function tiraTmp(){ if(mkTmp){ mkTmp.remove(); mkTmp=null; } }
+function poeTmp(lat,lon){ tiraTmp(); mkTmp=new maplibregl.Marker({color:"#14213d",scale:0.8}).setLngLat([lon,lat]).addTo(map); }
+function fecharCaixas(){ ["namebox","respbox","impbox","alunobox"].forEach(i=>$(i).style.display="none"); pendente=null; formModo=false; marcando=false; tiraTmp(); document.body.classList.toggle("adding",!!modo||!!(imp&&imp.ativa)); }
+function esconderQuad(){ $("quadbig").style.display="none"; if(mkQuad){ mkQuad.remove(); mkQuad=null; } clearTimeout(tQuad); }
+function setModo(m){
+  if(imp&&imp.ativa){ toast("Termine ou cancele a importação primeiro"); return; }
+  fimMover();
+  modo = (modo===m ? null : m);
+  fecharCaixas(); esconderQuad();
+  document.body.classList.toggle("adding",!!modo);
+  $("bAdd").classList.toggle("on",modo==="ponto");  $("bAdd").textContent = modo==="ponto"?"Clique no mapa…":"➕ Adicionar ponto";
+  $("bResp").classList.toggle("on",modo==="resp");  $("bResp").textContent = modo==="resp"?"Clique no lugar citado…":"➕ Registrar no mapa";
+  $("bQuad").classList.toggle("on",modo==="quad");  $("bQuad").textContent = modo==="quad"?"Clique onde o aluno mora…":"❓ Qual é o quadrante?";
+  if(modo==="ponto") toast("Clique no mapa onde fica o ponto de referência");
+  if(modo==="resp")  toast("Clique no mapa no lugar que o aluno citou");
+  if(modo==="quad")  toast("Clique perto de onde o aluno mora");
+  $("bAluMapa").classList.toggle("on",modo==="aluno"); $("bAluMapa").textContent = modo==="aluno"?"Clique onde o aluno mora…":"➕ Marcar no mapa";
+  if(modo==="aluno") toast("Clique no mapa perto de onde o aluno mora (um clique por aluno)");
+}
+function descr(ll){ const p={lat:ll.lat,lon:ll.lng}, q=quadrante(p), c=km(p); return {q,c,txt:`${Q[q].nome} (${fmt(c.x)} ; ${fmt(c.y)})`}; }
+function abrirNome(ll){
+  pendente=ll; const d=descr(ll);
+  $("nbQ").textContent=d.txt; $("nbQ").style.color=COR[d.q];
+  $("namebox").style.display="block"; $("nbInput").value=""; setTimeout(()=>$("nbInput").focus(),30);
+}
+function confirmarNome(){
+  if(!pendente) return;
+  const nome=$("nbInput").value.trim(); if(!nome){ $("nbInput").focus(); return; }
+  const p={q:0,nome,lat:pendente.lat,lon:pendente.lng,ok:true}; p.q=quadrante(p);
+  PONTOS.push(p); salvar(); fecharCaixas(); renderCards(); build();
+  toast(`“${nome}” adicionado ao ${Q[p.q].nome}`);
+}
+function removePonto(i){ const [r]=PONTOS.splice(i,1); salvar(); renderCards(); build(); toast(`Removido: ${r.nome}`); }
+function pintaSecs(){
+  $("rbSecs").innerHTML=[1,2,3,4].map(s=>`<button class="chip ${s===secAtual?"on":""}" data-s="${s}" style="--c:${SEC[s].cor}"><b>${SEC[s].adesivo}</b><br>${esc(SEC[s].nome)}</button>`).join("");
+}
+function listaSugestoes(){   // respostas já usadas (mais citadas primeiro) + pontos de referência + categorias
+  const s=secAtual, vistos=new Set(), op=[];
+  const add=t=>{ const k=chave(t); if(t&&!vistos.has(k)){ vistos.add(k); op.push(t); } };
+  maisCitados(s,999).forEach(o=>add(o.t));
+  if(s<=2) PONTOS.forEach(p=>add(p.nome));
+  CATEG[s].forEach(add);
+  $("rbLista").innerHTML=op.map(t=>`<option value="${esc(t)}">`).join("");
+}
+$("rbSecs").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; secAtual=+b.dataset.s; pintaSecs(); listaSugestoes(); $("rbSemLugar").checked=(secAtual===4); $("rbTexto").focus(); });
+// ----- onde fica: lugares conhecidos, busca na internet e marcação no mapa -----
+function acharLugar(ref,bairro){
+  const kr=chave(ref||""), kb=chave(bairro||"");
+  if(kr){ const p=PONTOS.find(p=>chave(p.nome)===kr)||LUG.find(l=>l.tipo==="ref"&&chave(l.nome)===kr); if(p) return {lat:p.lat,lon:p.lon,por:"ponto de referência",nome:p.nome}; }
+  if(kb){ const l=LUG.find(l=>l.tipo==="bairro"&&chave(l.nome)===kb); if(l) return {lat:l.lat,lon:l.lon,por:"bairro",nome:l.nome}; }
+  return null;
+}
+function nomeCerto(tipo,nome){   // usa a grafia do lugar conhecido ("perpetuo socorro" vira "Perpétuo Socorro")
+  const k=chave(nome||""); if(!k) return "";
+  const a = tipo==="ref" ? (PONTOS.find(p=>chave(p.nome)===k)||LUG.find(l=>l.tipo==="ref"&&chave(l.nome)===k)) : LUG.find(l=>l.tipo==="bairro"&&chave(l.nome)===k);
+  return a ? a.nome : String(nome).trim();
+}
+function aprender(tipo,nome,lat,lon){
+  nome=String(nome).trim(); if(!nome) return; const k=chave(nome);
+  if(tipo==="ref"&&PONTOS.some(p=>chave(p.nome)===k)) return;
+  const l=LUG.find(l=>l.tipo===tipo&&chave(l.nome)===k);
+  if(l){ l.lat=lat; l.lon=lon; } else LUG.push({tipo,nome,lat,lon});
+  salvar();
+}
+function oQueFalta(ref,bairro){   // o primeiro nome digitado que a página ainda não sabe onde fica
+  if(ref.trim()&&!acharLugar(ref,"")) return {tipo:"ref",nome:ref.trim()};
+  if(bairro.trim()&&!acharLugar("",bairro)) return {tipo:"bairro",nome:bairro.trim()};
+  return null;
+}
+// Tira o que a busca não entende: "comunidade Maçarico" e "Maçarico (zona rural)" viram "Maçarico".
+function semPrefixo(t){
+  return t.replace(/\(.*?\)/g," ").replace(/\b(zona rural|interior)\b/gi," ").replace(/[-–,]+\s*$/," ").trim()
+          .replace(/^(comunidade|com\.|vila|bairro|localidade|povoado|col[oô]nia|ramal|s[ií]tio|assentamento)\s+(d[aeo]s?\s+)?/i,"").replace(/\s+/g," ").trim();
+}
+async function buscaOSM(termo,tipo){   // tipo: "ref" | "rua" | "bairro". Só aceita resultados no município de Bragança e arredores.
+  const A=0.4, vb=[ESCOLA.lon-A,ESCOLA.lat+A,ESCOLA.lon+A,ESCOLA.lat-A].join(",");   // ~44 km para cada lado: cabe a zona rural
+  const uma=async t=>{
+    const u="https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&countrycodes=br&bounded=1&accept-language=pt-BR&viewbox="+vb+"&q="+encodeURIComponent(t+", Bragança, Pará");
+    const r=await fetch(u); if(!r.ok) throw new Error("a busca respondeu "+r.status);
+    const js=(await r.json()).filter(x=> tipo==="bairro" ? (x.category==="place"||x.category==="boundary") : tipo==="rua" ? x.category==="highway" : true);
+    return js[0] ? {lat:+js[0].lat,lon:+js[0].lon,nome:js[0].display_name.split(",").slice(0,2).join(",")} : null;
+  };
+  termo=termo.trim();
+  let a=await uma(termo);
+  const curto=semPrefixo(termo);
+  if(!a && tipo!=="rua" && curto && chave(curto)!==chave(termo)){ await new Promise(ok=>setTimeout(ok,1100)); a=await uma(curto); }   // a busca pede 1 consulta por segundo
+  return a;
+}
+// Rua com número: o OpenStreetMap não tem a numeração das casas de Bragança, então a rua é procurada primeiro
+// no geocodificador da Esri, que calcula a posição pelo número. Só vale rua (ou endereço) achada em Bragança, com nota alta.
+async function buscaEsri(rua,bairro){
+  const A=0.4, ext=[ESCOLA.lon-A,ESCOLA.lat+A,ESCOLA.lon+A,ESCOLA.lat-A].join(",");
+  const r1=rua.replace(/\bn[º°o]?\.?\s*(?=\d)/gi," ").replace(/\s+/g," ").trim();          // "nº 2931" vira "2931"
+  const b1=bairro.replace(/^\s*bai+r+o\s+/i,"").trim();
+  const u="https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&maxLocations=5&countryCode=BRA&outFields=Addr_type,Match_addr,Score,City&searchExtent="+ext+"&SingleLine="+encodeURIComponent([r1,b1,"Bragança - PA"].filter(Boolean).join(", "));
+  const r=await fetch(u); if(!r.ok) throw new Error("a busca respondeu "+r.status);
+  const c=((await r.json()).candidates||[]).find(c=>["PointAddress","StreetAddress","StreetName"].includes(c.attributes.Addr_type)&&c.attributes.Score>=90&&chave(c.attributes.City||"")==="braganca");
+  if(!c) return null;
+  return {lat:c.location.y,lon:c.location.x,nome:c.attributes.Match_addr.split(",").slice(0,2).join(","),numero:c.attributes.Addr_type!=="StreetName"};
+}
+async function procurarLugar(ref,rua,bairro){   // do mais preciso para o menos preciso
+  const tent=[]; if(ref.trim()) tent.push([ref,"ref"]); if(rua.trim()) tent.push([rua,"rua"]); if(bairro.trim()) tent.push([bairro,"bairro"]);
+  for(const [t,tp] of tent){
+    if(tp==="rua"){ try{ const e=await buscaEsri(t,bairro); if(e) return {...e,tipo:tp,termo:t.trim()}; }catch(err){ console.warn(err); } }   // se falhar, segue para o OpenStreetMap
+    const a=await buscaOSM(t,tp); if(a) return {...a,tipo:tp,termo:t.trim()}; }
+  return null;
+}
+function listasOnde(){
+  const un=(arr)=>{ const v=new Set(), o=[]; arr.forEach(t=>{ const k=chave(t||""); if(k&&!v.has(k)){ v.add(k); o.push(t); } }); return o; };
+  $("rbBairros").innerHTML=un([...LUG.filter(l=>l.tipo==="bairro").map(l=>l.nome),...RESP.map(r=>r.bairro),...ALUNOS.map(a=>a.bairro)]).map(t=>`<option value="${esc(t)}">`).join("");
+  $("rbRefs").innerHTML=un([...PONTOS.map(p=>p.nome),...LUG.filter(l=>l.tipo==="ref").map(l=>l.nome),...RESP.map(r=>r.ref),...ALUNOS.map(a=>a.ref)]).map(t=>`<option value="${esc(t)}">`).join("");
+}
+// A caixa de resposta e a caixa de aluno usam a mesma lógica de "onde fica"; cx diz qual das duas está em uso.
+const CX = { resp:{pre:"rb",box:"respbox",foco:"rbTexto"}, aluno:{pre:"al",box:"alunobox",foco:"alOk"} };
+let cx = CX.resp;
+const campo = n => $(cx.pre+n);
+function localAtual(){
+  if(pendente) return {lat:pendente.lat,lon:pendente.lng,por:pendente.por||"clique no mapa",nome:pendente.nome};
+  return acharLugar(campo("Ref").value,campo("Bairro").value);
+}
+function atualizaLocal(msg){
+  const L=localAtual(), el=campo("Local"), q=campo("Q");
+  if(L){ const d=descr({lat:L.lat,lng:L.lon}); q.textContent=d.txt; q.style.color=COR[d.q]; poeTmp(L.lat,L.lon);
+    el.className="local"+((formModo||cx===CX.aluno)?" ok":""); el.textContent=msg||`📍 Local: ${L.por}${L.nome?` “${L.nome}”`:""}. Confira o alfinete escuro no mapa.`; }
+  else { q.textContent="local a definir"; q.style.color="#c92a2a"; tiraTmp();
+    const f=oQueFalta(campo("Ref").value,campo("Bairro").value);
+    el.className="local falta"; el.textContent = msg || (f ? `Ainda não sei onde fica “${f.nome}”. Use Procurar ou Marcar no mapa (só na primeira vez).` : "Preencha o bairro ou o ponto de referência, ou marque no mapa."); }
+}
+function mostraResp(txt){
+  pintaSecs(); listaSugestoes(); listasOnde(); $("rbTexto").value=txt||""; $("rbPorque").value="";
+  $("rbSemLugar").checked = txt ? false : (secAtual===4);
+  $("rbFormBtns").style.display=formModo?"flex":"none";
+  $("respbox").style.display="block"; atualizaLocal();
+  setTimeout(()=>$(txt?"rbPorque":"rbTexto").focus(),30);
+}
+function abrirResp(ll,txt){   // registro clicando no mapa
+  cx=CX.resp; formModo=false; pendente={lng:ll.lng,lat:ll.lat,por:"clique no mapa"};
+  $("rbBairro").value=""; $("rbRua").value=""; $("rbRef").value="";
+  mostraResp(txt);
+}
+function abrirForm(){         // registro por endereço, sem clicar no mapa
+  if(imp&&imp.ativa){ toast("Termine ou cancele a importação primeiro"); return; }
+  if(modo) setModo(modo);
+  fecharCaixas(); cx=CX.resp; formModo=true; pendente=null; mostraResp("");
+}
+["rbBairro","rbRef","alBairro","alRef"].forEach(id=>$(id).addEventListener("input",()=>{
+  if(formModo && pendente && acharLugar(campo("Ref").value,campo("Bairro").value)) pendente=null;
+  atualizaLocal();
+}));
+function marcarNoMapa(){
+  marcando=true; $(cx.box).style.display="none"; document.body.classList.add("adding");
+  const f=oQueFalta(campo("Ref").value,campo("Bairro").value);
+  toast(f?`Clique no mapa onde fica “${f.nome}”`:"Clique no mapa no local certo",6000);
+}
+function marcou(ll){
+  marcando=false; document.body.classList.toggle("adding",!!modo);
+  const f=oQueFalta(campo("Ref").value,campo("Bairro").value);
+  if(f){ aprender(f.tipo,f.nome,ll.lat,ll.lng); pendente=null; listasOnde(); }
+  else pendente={lng:ll.lng,lat:ll.lat,por:"marcado no mapa"};
+  $(cx.box).style.display="block"; atualizaLocal(f?`📍 Aprendi onde fica “${f.nome}”. Não vou perguntar de novo.`:"");
+  $(cx.foco).focus();
+}
+async function procurarNoForm(){
+  const ref=campo("Ref").value, rua=campo("Rua").value, bairro=campo("Bairro").value, el=campo("Local");
+  if(!ref.trim()&&!rua.trim()&&!bairro.trim()){ atualizaLocal(); return; }
+  el.className="local ok"; el.textContent="Procurando…";
+  const falhou=t=>{ pendente=null; atualizaLocal(); el.className="local falta"; el.textContent=t; };
+  try{
+    const a=await procurarLugar(ref,rua,bairro);
+    if(!a){ falhou("Não achei na internet. Use Marcar no mapa."); return; }
+    pendente={lng:a.lon,lat:a.lat,por:a.tipo==="rua" ? (a.numero?"achado pelo endereço, com o número":/\d/.test(rua)?"achei só a rua, sem o número (posição aproximada):":"achado pela rua") : "achado pela "+(a.tipo==="ref"?"referência":"busca do bairro"),nome:a.nome};
+    if(a.tipo!=="rua") pendente.aprende={tipo:a.tipo,nome:a.termo};
+    atualizaLocal(); map.flyTo({center:[a.lon,a.lat],zoom:Math.max(map.getZoom(),14.5),duration:800});
+  }catch(e){ falhou("A busca falhou ("+e.message+"). Use Marcar no mapa."); }
+}
+function confirmarResp(){
+  const texto=$("rbTexto").value.trim(); if(!texto){ $("rbTexto").focus(); return; }
+  const L=localAtual(); if(!L){ atualizaLocal(); $(formModo?"rbBairro":"rbTexto").focus(); return; }
+  // se já existe a mesma resposta (sem diferença de acento ou maiúscula), usa a grafia já registrada
+  const iguais=RESP.filter(x=>x.sec===secAtual&&chave(x.texto)===chave(texto));
+  const r={id:String(Date.now())+Math.floor(Math.random()*1e4),sec:secAtual,lat:L.lat,lon:L.lon,texto:iguais.length?grafia(iguais):texto,porque:$("rbPorque").value.trim()};
+  if(pendente&&pendente.aprende) aprender(pendente.aprende.tipo,pendente.aprende.nome,L.lat,L.lon);
+  const b=nomeCerto("bairro",$("rbBairro").value), ru=$("rbRua").value.trim(), rf=nomeCerto("ref",$("rbRef").value);
+  if(b) r.bairro=b; if(ru) r.rua=ru; if(rf) r.ref=rf;
+  if($("rbSemLugar").checked) r.semLugar=true;
+  RESP.push(r); vis[r.sec]=true; salvar();
+  toast(`${SEC[r.sec].adesivo} no ${Q[quadrante(r)].nome}: “${r.texto}”${r.semLugar?" (sem lugar fixo)":""}`);
+  if(formModo){   // fica aberto para a próxima resposta do mesmo aluno: mantém o endereço
+    if(acharLugar(rf,b)) pendente=null;
+    renderResp(); $("rbTexto").value=""; $("rbPorque").value=""; listaSugestoes(); listasOnde(); atualizaLocal(); $("rbTexto").focus();
+  } else { fecharCaixas(); renderResp(); }
+}
+// ---------- distribuição da turma: onde os alunos moram ----------
+function gruposAlunos(raio,lista){   // junta os alunos que moram perto uns dos outros (mesmo bairro ou mesma referência)
+  const out=[];
+  (lista||ALUNOS).forEach(a=>{ const g=out.find(o=>distKm(o,a)<raio);
+    if(g){ g.itens.push(a); const n=g.itens.length; g.lat=(g.lat*(n-1)+a.lat)/n; g.lon=(g.lon*(n-1)+a.lon)/n; }
+    else out.push({lat:a.lat,lon:a.lon,itens:[a]}); });
+  out.forEach(g=>{ g.n=g.itens.length; g.q=quadrante(g);
+    const c=new Map(); g.itens.forEach(a=>{ if(a.bairro) c.set(a.bairro,(c.get(a.bairro)||0)+1); });
+    g.bairro=c.size?[...c.entries()].sort((x,y)=>y[1]-x[1])[0][0]:""; });
+  return out.sort((a,b)=>b.n-a.n);
+}
+function contaAlunos(){ const c={1:0,2:0,3:0,4:0}; ALUNOS.forEach(a=>c[quadrante(a)]++); return c; }
+function bairrosAlunos(){
+  const m=new Map(); let sem=0;
+  ALUNOS.forEach(a=>{ if(!a.bairro){ sem++; return; } const k=chave(a.bairro), o=m.get(k)||{t:a.bairro,n:0}; o.n++; m.set(k,o); });
+  return {lista:[...m.values()].sort((a,b)=>b.n-a.n),sem};
+}
+function renderAlunos(){
+  alus.forEach(m=>m.remove()); alus=[];
+  if(pronto&&verAlunos) gruposAlunos(0.08).forEach(g=>{
+    // o pino fica dentro de um invólucro: o MapLibre posiciona o invólucro, e o desenho (com position:relative) fica no filho
+    const el=document.createElement("div"), pino=document.createElement("div"); el.className="aluw"; pino.className="alu"; pino.textContent="🏠 "+g.n; el.appendChild(pino); el.title=(g.bairro?g.bairro+" · ":"")+g.n+" aluno(s)"; el._q=g.q;
+    el.addEventListener("click",e=>{ if(arrastando||caixaAberta()||modo||marcando||movendo||(imp&&imp.ativa)) return; e.stopPropagation(); popupAlunos(g); });
+    // em Editar pontos o pino arrasta: todos os alunos dele andam juntos
+    const m=new maplibregl.Marker({element:el,anchor:"bottom",offset:[0,-10],draggable:edit}).setLngLat([g.lon,g.lat]).addTo(map);
+    m.on("dragstart",()=>{ arrastando=true; if(popup) popup.remove(); });
+    m.on("dragend",()=>{ setTimeout(()=>{ arrastando=false; },60); moverGrupo(g,m.getLngLat()); });
+    el.style.zIndex=6; alus.push(m); });
+  const c=contaAlunos(), n=ALUNOS.length, b=$("bAluVer");
+  b.textContent="🏠 Alunos · "+n; b.classList.toggle("on",verAlunos);
+  $("resumoAlu").innerHTML = n ? `<table class="res"><tr><th>Quadrante</th><th>Alunos</th><th>%</th></tr>`+
+    [1,2,3,4].map(q=>`<tr><td style="color:${COR[q]}">Q${q} · ${Q[q].dir.split(" ")[0]}</td><td>${c[q]}</td><td>${Math.round(100*c[q]/n)}%</td></tr>`).join("")+
+    `<tr class="tot"><td>Total</td><td>${n}</td><td>100%</td></tr></table>` : "";
+  applyState();
+}
+function popupAlunos(g){
+  const d=document.createElement("div"); d.className="pop"; d.innerHTML=`<strong></strong><small></small><ul></ul>`;
+  const st=d.querySelector("strong"); st.textContent=`${g.n} aluno(s)`+(g.bairro?` · ${g.bairro}`:""); st.style.color="#e03131";
+  d.querySelector("small").textContent=`${Q[g.q].nome} · endereço aproximado, sem nome`;
+  const ul=d.querySelector("ul");
+  g.itens.forEach(a=>{ const li=document.createElement("li"), sp=document.createElement("span"), ac=document.createElement("span"), mv=document.createElement("button"), b=document.createElement("button");
+    sp.textContent=[a.bairro,a.rua,a.ref].filter(Boolean).join(" · ")||"(marcado no mapa)"; b.textContent="Excluir";
+    mv.textContent="Mover"; mv.className="mov"; mv.title="Depois clique no mapa onde esse aluno mora";
+    mv.onclick=()=>comecarMover(a);
+    const gg=document.createElement("button"); gg.textContent="🌍"; gg.className="mov"; gg.title="Ver este endereço no Google Maps (abre outra aba)";
+    gg.onclick=()=>abrirGoogle(a.rua,a.bairro,a.ref,a.lat,a.lon);
+    b.onclick=()=>{ ALUNOS=ALUNOS.filter(x=>x.id!==a.id); salvar(); renderAlunos(); if(popup) popup.remove(); toast("Aluno excluído"); };
+    ac.className="acoes"; ac.append(gg,mv,b); li.append(sp,ac); ul.appendChild(li); });
+  if(popup) popup.remove();
+  popup=new maplibregl.Popup({offset:34,maxWidth:"320px"}).setLngLat([g.lon,g.lat]).setDOMContent(d).addTo(map);
+}
+// Mover alunos: arrastar o pino (Editar pontos) move o grupo todo; o botão Mover do balão move um aluno só.
+let arrastando=false, movendo=null;
+function moverGrupo(g,ll){
+  const dLat=ll.lat-g.lat, dLon=ll.lng-g.lon;
+  if(Math.abs(dLat)<1e-7&&Math.abs(dLon)<1e-7) return;
+  const ids=new Set(g.itens.map(a=>a.id)), nomes=new Set();
+  g.itens.forEach(a=>{ if(a.bairro) nomes.add("bairro|"+chave(a.bairro)); if(a.ref) nomes.add("ref|"+chave(a.ref)); });
+  // se o pino estava no ponto aprendido do bairro (ou da referência), esse ponto vai junto: quem digitar o nome depois cai no lugar novo
+  const lugs=LUG.filter(l=>nomes.has(l.tipo+"|"+chave(l.nome))&&distKm(l,g)<0.08);
+  ALUNOS.forEach(a=>{ if(ids.has(a.id)){ a.lat+=dLat; a.lon+=dLon; } });
+  lugs.forEach(l=>{ l.lat+=dLat; l.lon+=dLon; });
+  salvar(); renderAlunos();
+  toast(`${g.n} aluno(s) movido(s) para o ${Q[quadrante({lat:ll.lat,lon:ll.lng})].nome}`+(lugs.length?` · o ponto de ${lugs.map(l=>l.nome).join(", ")} também mudou`:""),6000);
+}
+// Conferência com o Google Maps: a página não consulta o Google sozinha (precisaria de chave). Ela abre a pesquisa em outra aba,
+// e a pessoa traz de volta as coordenadas copiadas de lá ("-1.03864, -46.77015").
+function lerCoord(t){
+  const m=String(t).match(/-?\d+[.,]\d+/g); if(!m||m.length!==2) return null;
+  const lat=parseFloat(m[0].replace(",",".")), lng=parseFloat(m[1].replace(",","."));
+  if(!isFinite(lat)||!isFinite(lng)||Math.abs(lat-ESCOLA.lat)>1||Math.abs(lng-ESCOLA.lon)>1) return null;   // só a região de Bragança
+  return {lat,lng};
+}
+function abrirGoogle(rua,bairro,ref,lat,lon){
+  const t=[rua||ref,bairro].filter(x=>x&&String(x).trim()).join(", ");
+  const q = t ? t+", Bragança - PA" : (lat!=null ? lat.toFixed(6)+","+lon.toFixed(6) : "Bragança - PA");
+  window.open("https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(q),"_blank","noopener");
+}
+function fimMover(){ movendo=null; $("movbar").style.display="none"; document.body.classList.toggle("adding",!!modo); }
+function comecarMover(a){
+  if(popup) popup.remove();
+  movendo=a.id; document.body.classList.add("adding");
+  $("mvCoord").value=""; $("movbar").style.display="block";
+}
+function moverPorCoord(){
+  const c=lerCoord($("mvCoord").value);
+  if(!c){ toast("Não entendi as coordenadas. Cole como no Google Maps: -1.03864, -46.77015",5000); $("mvCoord").focus(); return; }
+  moverAluno(c); map.flyTo({center:[c.lng,c.lat],zoom:Math.max(map.getZoom(),15),duration:800});
+}
+function moverAluno(ll){
+  const a=ALUNOS.find(x=>x.id===movendo); fimMover();
+  if(!a) return;
+  a.lat=ll.lat; a.lon=ll.lng; salvar(); renderAlunos();
+  toast(`Aluno movido para o ${Q[quadrante(a)].nome}`);
+}
+const limpaAluno = () => ["alBairro","alRua","alRef","alCoord"].forEach(i=>{ $(i).value=""; });
+function mostraAluno(){
+  listasOnde(); $("alFormBtns").style.display=formModo?"flex":"none";
+  $("alunobox").style.display="block"; atualizaLocal(); setTimeout(()=>$("alBairro").focus(),30);
+}
+function abrirAluno(ll){      // um clique no mapa por aluno; bairro e referência são opcionais
+  cx=CX.aluno; formModo=false; pendente={lng:ll.lng,lat:ll.lat,por:"clique no mapa"}; limpaAluno(); mostraAluno();
+}
+function abrirAlunoForm(){    // por endereço, sem clicar no mapa
+  if(imp&&imp.ativa){ toast("Termine ou cancele a importação primeiro"); return; }
+  if(modo) setModo(modo);
+  fecharCaixas(); cx=CX.aluno; formModo=true; pendente=null; limpaAluno(); mostraAluno();
+}
+function confirmarAluno(){
+  const L=localAtual(); if(!L){ atualizaLocal(); $("alBairro").focus(); return; }
+  if(pendente&&pendente.aprende) aprender(pendente.aprende.tipo,pendente.aprende.nome,L.lat,L.lon);
+  const a={id:String(Date.now())+Math.floor(Math.random()*1e4),lat:L.lat,lon:L.lon};
+  const b=nomeCerto("bairro",$("alBairro").value), ru=$("alRua").value.trim(), rf=nomeCerto("ref",$("alRef").value);
+  if(b) a.bairro=b; if(ru) a.rua=ru; if(rf) a.ref=rf;
+  ALUNOS.push(a); verAlunos=true; salvar();
+  toast(`Aluno nº ${ALUNOS.length} no ${Q[quadrante(a)].nome}`+(b?` (${b})`:""));
+  if(formModo){ pendente=null; limpaAluno(); renderAlunos(); listasOnde(); atualizaLocal(); $("alBairro").focus(); }   // pronto para o próximo aluno
+  else { fecharCaixas(); renderAlunos(); }
+}
+function mostrarQuad(ll){
+  esconderQuad();
+  const d=descr(ll), perto=Math.min(Math.abs(d.c.x),Math.abs(d.c.y))<0.1;
+  const el=$("quadbig"); el.style.setProperty("--c",COR[d.q]);
+  el.innerHTML=`<small>Este lugar fica no</small><b>QUADRANTE ${d.q}</b><span>${Q[d.q].dir} · (${fmt(d.c.x)} ; ${fmt(d.c.y)}) km</span>${perto?"<em>Bem perto do eixo: o aluno escolhe o grupo.</em>":""}`;
+  el.style.display="block";
+  mkQuad=new maplibregl.Marker({color:COR[d.q]}).setLngLat(ll).addTo(map);
+  tQuad=setTimeout(esconderQuad,9000);
+}
+map.on("click",e=>{
+  if(imp&&imp.ativa){ if(!caixaAberta()) filaDefine(e.lngLat.lat,e.lngLat.lng); return; }
+  if(movendo){ moverAluno(e.lngLat); return; }
+  if(marcando){ marcou(e.lngLat); return; }
+  if(caixaAberta()) return;
+  if(modo==="ponto") abrirNome(e.lngLat);
+  else if(modo==="resp") abrirResp(e.lngLat);
+  else if(modo==="quad") mostrarQuad(e.lngLat);
+  else if(modo==="aluno") abrirAluno(e.lngLat);
+
+});
+$("bAdd").onclick=()=>setModo("ponto");
+$("bResp").onclick=()=>setModo("resp");
+$("bQuad").onclick=()=>setModo("quad");
+$("nbOk").onclick=confirmarNome; $("nbCancel").onclick=fecharCaixas;
+$("rbOk").onclick=confirmarResp; $("rbCancel").onclick=fecharCaixas;
+$("nbInput").addEventListener("keydown",e=>{ if(e.key==="Enter") confirmarNome(); else if(e.key==="Escape") fecharCaixas(); });
+["rbTexto","rbPorque","rbBairro","rbRua","rbRef"].forEach(id=>$(id).addEventListener("keydown",e=>{
+  if(e.key==="Escape") fecharCaixas();
+  else if(e.key==="Enter"){ if(id==="rbTexto" && !$("rbPorque").value) $("rbPorque").focus(); else confirmarResp(); }
+}));
+$("rbMarca").onclick=marcarNoMapa; $("rbBusca").onclick=procurarNoForm;
+$("alMarca").onclick=marcarNoMapa; $("alBusca").onclick=procurarNoForm;
+$("alOk").onclick=()=>confirmarAluno(); $("alCancel").onclick=fecharCaixas;
+["alBairro","alRua","alRef","alCoord"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Escape") fecharCaixas(); else if(e.key==="Enter") confirmarAluno(); }));
+$("alCoord").addEventListener("input",()=>{
+  const v=$("alCoord").value, c=lerCoord(v);
+  if(c){ pendente={lng:c.lng,lat:c.lat,por:"coordenadas coladas do Google Maps"}; atualizaLocal(); map.flyTo({center:[c.lng,c.lat],zoom:Math.max(map.getZoom(),15),duration:800}); }
+  else if(v.trim()){ const el=$("alLocal"); el.className="local falta"; el.textContent="Não entendi as coordenadas. Cole como no Google Maps: -1.03864, -46.77015"; }
+});
+$("alGoogle").onclick=()=>abrirGoogle($("alRua").value,$("alBairro").value,$("alRef").value);
+$("mvOk").onclick=moverPorCoord; $("mvCancel").onclick=()=>{ fimMover(); toast("Mudança cancelada"); };
+$("mvCoord").addEventListener("keydown",e=>{ if(e.key==="Enter") moverPorCoord(); else if(e.key==="Escape"){ fimMover(); toast("Mudança cancelada"); } });
+$("bReset").onclick=()=>{ PONTOS=JSON.parse(JSON.stringify(PADRAO)); salvar(); renderCards(); build(); toast("Pontos de referência originais restaurados"); };
+
+// ---------- 3D / giro ----------
+let is3d=false, orbit=false, raf=0;
+function label3d(){ $("b3d").classList.toggle("on",is3d); $("b3d").textContent=is3d?"Voltar ao plano":"Visão 3D"; }
+function set3d(on,quiet){
+  stopOrbit(); is3d=on; label3d();
+  if(on) map.easeTo({pitch:62,bearing:-25,duration:1400}); else map.easeTo({pitch:0,bearing:0,duration:1000});
+  if(!quiet) toast(on?"Visão 3D — botão direito + arrastar para girar":"Mapa plano");
+}
+function startOrbit(){
+  if(!is3d) set3d(true,true);
+  orbit=true; $("bOrbit").classList.add("on"); $("bOrbit").textContent="Parar giro";
+  let last=performance.now();
+  const step=t=>{ if(!orbit) return; map.setBearing(map.getBearing()+(t-last)*0.006); last=t; raf=requestAnimationFrame(step); };
+  setTimeout(()=>{ if(orbit){ last=performance.now(); raf=requestAnimationFrame(step); } },1500);
+}
+function stopOrbit(){ orbit=false; cancelAnimationFrame(raf); $("bOrbit").classList.remove("on"); $("bOrbit").textContent="Girar"; }
+map.on("mousedown",()=>{ if(orbit) stopOrbit(); });
+map.on("touchstart",()=>{ if(orbit) stopOrbit(); });
+function northUp(){ stopOrbit(); map.easeTo({bearing:0,duration:700}); }
+
+// ---------- demais controles ----------
+function toast(t,ms){ const el=$("toast"); el.textContent=t; el.classList.add("show"); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove("show"),ms||2200); }
+function baixar(blob,nome){ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=nome; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); }
+const satOn = () => map.getLayoutProperty("sat","visibility")==="visible";
+function toggleProj(){ document.body.classList.toggle("proj"); $("bProj").classList.toggle("on"); setTimeout(()=>{map.resize();fit(focus?rb[focus]:ALL,{duration:0});},60); }
+function toggleSat(){ const s=satOn(); map.setLayoutProperty("sat","visibility",s?"none":"visible"); map.setLayoutProperty("street","visibility",s?"visible":"none"); $("bSat").classList.toggle("on",!s); }
+function toggleEdit(){ edit=!edit; document.body.classList.toggle("edit",edit); $("bEdit").classList.toggle("on",edit); build(); renderAlunos(); toast(edit?"Modo edição: arraste os pontos de referência ou os pinos dos alunos":"Edição encerrada"); }
+function copyJSON(){
+  const out=PONTOS.map(p=>`  {q:${p.q},nome:${JSON.stringify(p.nome)},lat:${p.lat.toFixed(5)},lon:${p.lon.toFixed(5)},ok:${p.ok}},`).join("\n");
+  navigator.clipboard?.writeText("let PONTOS = [\n"+out+"\n];").then(()=>toast("Copiado! Cole no arquivo para fixar."),()=>{console.log(out);toast("Veja no console (F12)")});
+}
+function abrirEarth(){
+  window.open(`https://earth.google.com/web/@${ESCOLA.lat},${ESCOLA.lon},5a,2200d,35y,0h,55t,0r`,"_blank","noopener");
+  toast("Google Earth aberto em outra aba");
+}
+
+// ---------- exportações ----------
+function exportarKML(){
+  const kc={1:"ffe84870",2:"ff5c25c2",3:"ff575049",4:"ff2b5a8d"};     // quadrantes, em aabbggrr
+  const ks={1:"ff449e2f",2:"ffd67e1c",3:"ff00b8f5",4:"ff0767f7"};     // adesivos, em aabbggrr
+  const ICON="https://www.gstatic.com/mapspro/images/stock/503-wht-blank_maps.png";
+  const hs='<hotSpot x="32" xunits="pixels" y="64" yunits="insetPixels"/>';
+  const dlat=3/KY, dlon=3/KX, sg={1:[1,1],2:[-1,1],3:[-1,-1],4:[1,-1]};
+  const o=['<?xml version="1.0" encoding="UTF-8"?>','<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Bragança em 4 quadrantes</name>'];
+  for(const k of [1,2,3,4]){
+    o.push(`<Style id="p${k}"><IconStyle><color>${kc[k]}</color><scale>1</scale><Icon><href>${ICON}</href></Icon>${hs}</IconStyle></Style>`);
+    o.push(`<Style id="s${k}"><IconStyle><color>${ks[k]}</color><scale>0.8</scale><Icon><href>${ICON}</href></Icon>${hs}</IconStyle></Style>`);
+    o.push(`<Style id="a${k}"><LineStyle><color>${kc[k]}</color><width>2</width></LineStyle><PolyStyle><color>44${kc[k].slice(2)}</color><fill>1</fill><outline>1</outline></PolyStyle></Style>`);
+  }
+  o.push('<Style id="eixo"><LineStyle><color>ff000000</color><width>5</width></LineStyle></Style>');
+  o.push(`<Style id="esc"><IconStyle><color>ff3d2114</color><scale>1.3</scale><Icon><href>${ICON}</href></Icon>${hs}</IconStyle></Style>`);
+  o.push(`<Folder><name>Origem e eixos</name><Placemark><name>${esc(ESCOLA.nome.toUpperCase())} (0,0)</name><styleUrl>#esc</styleUrl><Point><coordinates>${ESCOLA.lon},${ESCOLA.lat},0</coordinates></Point></Placemark>`);
+  o.push(`<Placemark><name>Eixo Norte-Sul (y)</name><styleUrl>#eixo</styleUrl><LineString><coordinates>${ESCOLA.lon},${ESCOLA.lat-dlat},0 ${ESCOLA.lon},${ESCOLA.lat+dlat},0</coordinates></LineString></Placemark>`);
+  o.push(`<Placemark><name>Eixo Leste-Oeste (x)</name><styleUrl>#eixo</styleUrl><LineString><coordinates>${ESCOLA.lon-dlon},${ESCOLA.lat},0 ${ESCOLA.lon+dlon},${ESCOLA.lat},0</coordinates></LineString></Placemark></Folder>`);
+  const nomes={1:"Q1 Nordeste (+,+)",2:"Q2 Noroeste (-,+)",3:"Q3 Sudoeste (-,-)",4:"Q4 Sudeste (+,-)"};
+  for(const k of [1,2,3,4]){
+    const [sx,sy]=sg[k];
+    const ring=[[ESCOLA.lon,ESCOLA.lat],[ESCOLA.lon+sx*dlon,ESCOLA.lat],[ESCOLA.lon+sx*dlon,ESCOLA.lat+sy*dlat],[ESCOLA.lon,ESCOLA.lat+sy*dlat],[ESCOLA.lon,ESCOLA.lat]];
+    o.push(`<Folder><name>${nomes[k]}</name><Placemark><name>Área ${nomes[k]}</name><styleUrl>#a${k}</styleUrl><Polygon><outerBoundaryIs><LinearRing><coordinates>${ring.map(c=>c[0]+","+c[1]+",0").join(" ")}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>`);
+    PONTOS.filter(p=>p.q===k).forEach(p=>o.push(`<Placemark><name>${esc(p.nome)}</name><styleUrl>#p${k}</styleUrl><Point><coordinates>${p.lon},${p.lat},0</coordinates></Point></Placemark>`));
+    o.push("</Folder>");
+  }
+  for(const s of [1,2,3,4]){
+    const rs=RESP.filter(r=>r.sec===s); if(!rs.length) continue;
+    o.push(`<Folder><name>Respostas — ${esc(SEC[s].adesivo)}: ${esc(SEC[s].nome)}</name>`);
+    rs.forEach(r=>o.push(`<Placemark><name>${esc(r.texto)}</name><description>${esc(r.porque||"")}</description><styleUrl>#s${s}</styleUrl><Point><coordinates>${r.lon},${r.lat},0</coordinates></Point></Placemark>`));
+    o.push("</Folder>");
+  }
+  o.push("</Document></kml>");
+  baixar(new Blob([o.join("\n")],{type:"application/vnd.google-earth.kml+xml"}),"quadrantes-braganca.kml");
+  toast("KML baixado — importe no Google Earth");
+}
+function exportarCSV(){
+  if(!RESP.length){ toast("Ainda não há respostas registradas"); return; }
+  const L=[["Seção","Adesivo","Tipo","Resposta","Breve porquê","Bairro","Rua","Ponto de referência","Sem lugar fixo","Quadrante","x (km)","y (km)","Latitude","Longitude"]];
+  [...RESP].sort((a,b)=>a.sec-b.sec||quadrante(a)-quadrante(b)).forEach(r=>{
+    const x=(r.lon-ESCOLA.lon)*KX, y=(r.lat-ESCOLA.lat)*KY;
+    L.push([r.sec,SEC[r.sec].adesivo,SEC[r.sec].nome,r.texto,r.porque||"",r.bairro||"",r.rua||"",r.ref||"",r.semLugar?"sim":"",quadrante(r),x.toFixed(2).replace(".",","),y.toFixed(2).replace(".",","),r.lat.toFixed(5),r.lon.toFixed(5)]);
+  });
+  const csv="﻿"+L.map(l=>l.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(";")).join("\r\n");
+  baixar(new Blob([csv],{type:"text/csv;charset=utf-8"}),"respostas-braganca.csv");
+  toast("Planilha baixada (abre no Excel)");
+}
+function salvarCopia(){
+  baixar(new Blob([JSON.stringify({versao:3,pontos:PONTOS,respostas:RESP,lugares:LUG,alunos:ALUNOS},null,1)],{type:"application/json"}),"dados-mapa-braganca.json");
+  toast("Cópia salva — guarde o arquivo dados-mapa-braganca.json");
+}
+// Abrir cópia troca tudo pelo que está no arquivo. Juntar cópia soma o arquivo de outra pessoa ao que já está aqui:
+// cada resposta e cada aluno têm um código próprio (id), então juntar o mesmo arquivo duas vezes não duplica nada.
+let copiaModo = "abrir";
+function lerCopia(txt){
+  const d=JSON.parse(txt);
+  if(!Array.isArray(d.pontos)||!Array.isArray(d.respostas)) throw new Error("formato");
+  const okP=d.pontos.every(p=>typeof p.nome==="string"&&isFinite(p.lat)&&isFinite(p.lon));
+  const okR=d.respostas.every(r=>SEC[r.sec]&&typeof r.texto==="string"&&isFinite(r.lat)&&isFinite(r.lon));
+  if(!okP||!okR) throw new Error("formato");
+  const onde=o=>({...(o.bairro?{bairro:String(o.bairro)}:{}),...(o.rua?{rua:String(o.rua)}:{}),...(o.ref?{ref:String(o.ref)}:{})});
+  // registro sem código (arquivo antigo) ganha um código tirado do conteúdo, para a junção repetida não duplicar
+  return {
+    pontos: d.pontos.map(p=>({q:quadrante(p),nome:p.nome,lat:+p.lat,lon:+p.lon,ok:true})),
+    resp: d.respostas.map((r,i)=>({id:String(r.id||["r",i,r.sec,r.lat,r.lon,chave(r.texto)].join("|")),sec:+r.sec,lat:+r.lat,lon:+r.lon,texto:r.texto,porque:String(r.porque||""),...(r.semLugar?{semLugar:true}:{}),...onde(r)})),
+    lug: (Array.isArray(d.lugares)?d.lugares:[]).filter(l=>(l.tipo==="bairro"||l.tipo==="ref")&&typeof l.nome==="string"&&isFinite(l.lat)&&isFinite(l.lon)).map(l=>({tipo:l.tipo,nome:l.nome,lat:+l.lat,lon:+l.lon})),
+    alunos: (Array.isArray(d.alunos)?d.alunos:[]).filter(a=>isFinite(a.lat)&&isFinite(a.lon)).map((a,i)=>({id:String(a.id||["a",i,a.lat,a.lon].join("|")),lat:+a.lat,lon:+a.lon,...onde(a)})),
+    temAlunos: Array.isArray(d.alunos)
+  };
+}
+function juntarCopia(c){
+  const n={resp:0,alunos:0,lug:0,pontos:0};
+  const idsR=new Set(RESP.map(r=>String(r.id))), idsA=new Set(ALUNOS.map(a=>String(a.id)));
+  c.resp.forEach(r=>{ if(!idsR.has(r.id)){ idsR.add(r.id); RESP.push(r); n.resp++; } });
+  c.alunos.forEach(a=>{ if(!idsA.has(a.id)){ idsA.add(a.id); ALUNOS.push(a); n.alunos++; } });
+  // lugares e pontos de referência: entra só o que esta página ainda não conhece (o que já está aqui não muda)
+  c.lug.forEach(l=>{ const k=chave(l.nome); if(l.tipo==="ref"&&PONTOS.some(p=>chave(p.nome)===k)) return;
+    if(!LUG.some(o=>o.tipo===l.tipo&&chave(o.nome)===k)){ LUG.push(l); n.lug++; } });
+  c.pontos.forEach(p=>{ if(!PONTOS.some(o=>chave(o.nome)===chave(p.nome))){ PONTOS.push(p); n.pontos++; } });
+  return n;
+}
+$("fileIn").addEventListener("change",async e=>{
+  const f=e.target.files[0]; e.target.value=""; if(!f) return;
+  const juntar=copiaModo==="juntar";
+  try{
+    const c=lerCopia(await f.text());
+    let msg;
+    if(juntar){
+      const n=juntarCopia(c), jaTinha=(c.resp.length-n.resp)+(c.alunos.length-n.alunos);
+      msg = (n.resp||n.alunos||n.lug||n.pontos)
+        ? `Juntei do arquivo: respostas novas ${n.resp}, alunos novos ${n.alunos}`+((n.lug||n.pontos)?`, lugares aprendidos ${n.lug}, pontos de referência ${n.pontos}`:"")+(jaTinha?` (já estavam aqui: ${jaTinha})`:"")+`. Total agora: respostas ${RESP.length}, alunos ${ALUNOS.length}.`
+        : "Nada novo nesse arquivo: tudo o que ele traz já estava aqui.";
+    } else {
+      PONTOS=c.pontos; RESP=c.resp; if(c.lug.length) LUG=c.lug; if(c.temAlunos) ALUNOS=c.alunos;
+      msg=`Cópia aberta: ${PONTOS.length} pontos, ${RESP.length} respostas e ${ALUNOS.length} alunos`;
+    }
+    salvar(); renderCards(); build(); renderResp(); renderAlunos();
+    toast(msg,juntar?9000:undefined);
+  }catch(err){ console.error(err); toast("Não consegui ler esse arquivo (use o dados-mapa-braganca.json)"); }
+});
+
+// ---------- importar planilha (CSV ou Excel): bairro, rua, ponto de referência, categoria, resposta ----------
+function lerCSV(txt){
+  txt=txt.replace(/^﻿/,"");
+  const l1=txt.split(/\r?\n/,1)[0], sep=[";","\t",","].map(c=>[c,l1.split(c).length]).sort((a,b)=>b[1]-a[1])[0][0];
+  const rows=[]; let row=[], cur="", q=false;
+  for(let i=0;i<txt.length;i++){ const c=txt[i];
+    if(q){ if(c==='"'){ if(txt[i+1]==='"'){ cur+='"'; i++; } else q=false; } else cur+=c; }
+    else if(c==='"') q=true;
+    else if(c===sep){ row.push(cur); cur=""; }
+    else if(c==="\n"){ row.push(cur); rows.push(row); row=[]; cur=""; }
+    else if(c!=="\r") cur+=c; }
+  if(cur!==""||row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+function carregaXLSX(){
+  if(window.XLSX) return Promise.resolve();
+  return new Promise((ok,err)=>{ const sc=document.createElement("script"); sc.src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js";
+    sc.onload=()=>ok(); sc.onerror=()=>err(new Error("não consegui carregar o leitor de Excel (sem internet?). Salve a planilha como CSV e tente de novo")); document.head.appendChild(sc); });
+}
+async function lerPlanilha(f){
+  const buf=await f.arrayBuffer();
+  if(/\.(xlsx|xls|ods)$/i.test(f.name)){ await carregaXLSX(); const wb=XLSX.read(buf,{type:"array"}); return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:"",raw:false}); }
+  let txt; try{ txt=new TextDecoder("utf-8",{fatal:true}).decode(buf); }catch(e){ txt=new TextDecoder("windows-1252").decode(buf); }
+  return lerCSV(txt);
+}
+function secDe(v){   // aceita 1–4, a cor do adesivo, o nome da seção ou uma resposta padronizada que só existe numa seção
+  const k=chave(v); if(!k) return 0;
+  const m=k.match(/^([1-4])(\b|$)/); if(m) return +m[1];
+  const cores={verde:1,azul:2,amarelo:3,amarela:3,laranja:4}; if(cores[k]) return cores[k];
+  for(const s of [1,2,3,4]) if(k===chave(SEC[s].nome)||k===chave(SEC[s].curto)||k===chave(TITB[s])) return s;
+  if(/^lugar/.test(k)) return 1; if(/^servi/.test(k)) return 2; if(/melhor|^aspecto/.test(k)) return 3; if(/falt|^oportun/.test(k)) return 4;
+  const em=[1,2,3,4].filter(s=>CATEG[s].some(c=>chave(c)===k)); return em.length===1?em[0]:0;
+}
+const chaveResp = r => [r.sec,chave(r.texto),chave(r.bairro||""),chave(r.rua||""),chave(r.ref||""),chave(r.porque||"")].join("|");
+function interpretar(rows){
+  rows=rows.filter(r=>r.some(c=>String(c).trim()!=="")); if(rows.length<2) throw new Error("a planilha está vazia");
+  const H=rows[0].map(chave);
+  const col=(...ns)=>{ for(const n of ns){ const i=H.indexOf(n); if(i>=0) return i; } for(const n of ns){ const i=H.findIndex(h=>h.startsWith(n)); if(i>=0) return i; } return -1; };
+  const c={bairro:col("bairro"),rua:col("rua","endereco"),ref:col("ponto de referencia","referencia","ponto"),cat:col("categoria","secao","adesivo","cor","tipo"),resp:col("resposta"),
+           pq:col("breve porque","porque","por que","justificativa"),sem:col("sem lugar fixo","sem lugar"),lat:col("latitude","lat"),lon:col("longitude","lon","lng")};
+  if(c.resp<0||c.cat<0) throw new Error("a primeira linha precisa ter as colunas “categoria” e “resposta”");
+  const num=t=>parseFloat(String(t).replace(",","."));
+  const itens=[], erros=[]; let exemplos=0;
+  rows.slice(1).forEach((r,i)=>{ const g=k=>k>=0?String(r[k]==null?"":r[k]).trim():"", n=i+2;
+    const texto=g(c.resp), sec=secDe(g(c.cat));
+    if(/^exemplo/i.test(texto)){ exemplos++; return; }
+    if(!texto){ erros.push(`Linha ${n}: sem resposta`); return; }
+    if(!sec){ erros.push(`Linha ${n}: categoria “${g(c.cat)}” não reconhecida`); return; }
+    const it={n,sec,texto,porque:g(c.pq),bairro:g(c.bairro),rua:g(c.rua),ref:g(c.ref),semLugar:/^(s|sim|x|1|true)$/i.test(g(c.sem))};
+    const la=num(g(c.lat)), lo=num(g(c.lon));
+    if(isFinite(la)&&isFinite(lo)&&Math.abs(la-ESCOLA.lat)<1&&Math.abs(lo-ESCOLA.lon)<1){ it.lat=la; it.lon=lo; }
+    if(it.lat===undefined&&!it.bairro&&!it.ref){ erros.push(`Linha ${n}: sem bairro nem ponto de referência`); return; }
+    itens.push(it); });
+  // linhas que já estão no mapa (reimportação da mesma planilha) não entram de novo
+  const ja=new Map(); RESP.forEach(r=>{ const k=chaveResp(r); ja.set(k,(ja.get(k)||0)+1); });
+  const novos=[]; let dups=0;
+  itens.forEach(it=>{ const k=chaveResp(it); if(ja.get(k)>0){ ja.set(k,ja.get(k)-1); dups++; } else novos.push(it); });
+  // lugares que ainda não sei onde ficam: pergunto o bairro (serve para mais linhas); sem bairro, a referência
+  const fila=[];
+  novos.forEach(it=>{ if(it.lat!==undefined||acharLugar(it.ref,it.bairro)) return;
+    const f=it.bairro?{tipo:"bairro",nome:it.bairro}:{tipo:"ref",nome:it.ref};
+    const e=fila.find(x=>x.tipo===f.tipo&&chave(x.nome)===chave(f.nome)); if(e) e.n++; else fila.push({...f,n:1}); });
+  return {itens:novos,erros,dups,exemplos,fila,i:0,ativa:false,pulados:0,cand:null};
+}
+function listaHTML(l){ return l.length?`<ul>${l.slice(0,15).map(t=>`<li>${esc(t)}</li>`).join("")}${l.length>15?`<li>… e mais ${l.length-15}</li>`:""}</ul>`:""; }
+$("sheetIn").addEventListener("change",async e=>{
+  const f=e.target.files[0]; e.target.value=""; if(!f) return;
+  try{
+    toast("Lendo a planilha…",8000);
+    const linhas=await lerPlanilha(f);
+    imp = impTipo==="alunos" ? interpretarAlunos(linhas) : interpretar(linhas); imp.tipo=impTipo;
+    $("ibTit").textContent="Importar planilha: "+f.name;
+    $("ibTxt").innerHTML=`<p><b>${imp.itens.length}</b> ${imp.tipo==="alunos"?"aluno(s) novo(s)":"resposta(s) nova(s)"} para importar.`+
+      (imp.dups?`<br>${imp.dups} linha(s) já estão no mapa e serão ignoradas.`:"")+
+      (imp.fila.length?`<br><b>${imp.fila.length}</b> lugar(es) que ainda não conheço: vou perguntar um por vez onde ficam.`:"")+
+      (imp.erros.length?`<br><b style="color:#c92a2a">${imp.erros.length} linha(s) com problema</b>, que ficam de fora:`:"")+`</p>`+listaHTML(imp.erros);
+    $("ibOk").style.display=imp.itens.length?"":"none"; $("ibOk").textContent="Importar"; $("ibCancel").textContent=imp.itens.length?"Cancelar":"Fechar";
+    $("toast").classList.remove("show"); $("impbox").style.display="block";
+  }catch(err){ imp=null; toast("Não consegui ler a planilha: "+err.message,8000); }
+});
+$("ibCancel").onclick=()=>{ imp=null; fecharCaixas(); };
+$("ibOk").onclick=()=>{ if(!imp) return; $("impbox").style.display="none"; imp.ativa=true; document.body.classList.add("adding"); filaMostra(); };
+function filaMostra(){
+  const f=imp.fila[imp.i]; tiraTmp(); imp.cand=null;
+  if(!f){ filaFim(); return; }
+  const el=$("impbar");
+  el.innerHTML=`<b></b><small></small><div class="btns"><button id="fbOk" style="display:none" class="on">✔ Está certo</button><button id="fbBusca">🔎 Procurar na internet</button><button id="fbPula">Pular</button><button id="fbCancela">Cancelar importação</button></div>`;
+  el.querySelector("b").textContent=`Clique no mapa: onde fica ${f.tipo==="bairro"?"o bairro":"a referência"} “${f.nome}”?`;
+  el.querySelector("small").textContent=`Lugar ${imp.i+1} de ${imp.fila.length} · vale para ${f.n} linha(s) · só pergunto desta vez`;
+  $("fbPula").onclick=()=>{ imp.pulados++; imp.i++; filaMostra(); };
+  $("fbCancela").onclick=()=>{ imp=null; el.style.display="none"; tiraTmp(); document.body.classList.toggle("adding",!!modo); toast("Importação cancelada. Nada foi adicionado."); };
+  $("fbOk").onclick=()=>{ if(imp.cand) filaDefine(imp.cand.lat,imp.cand.lon); };
+  $("fbBusca").onclick=async()=>{ const sm=el.querySelector("small"); sm.textContent="Procurando…";
+    try{ const a=await buscaOSM(f.nome,f.tipo);
+      if(!a){ sm.textContent="Não achei na internet. Clique no mapa no lugar certo, ou pule."; return; }
+      imp.cand=a; poeTmp(a.lat,a.lon); map.flyTo({center:[a.lon,a.lat],zoom:Math.max(map.getZoom(),14.5),duration:800});
+      sm.textContent=`Achei “${a.nome}” (alfinete escuro). Se estiver certo, confirme; senão, clique no lugar certo.`; $("fbOk").style.display="";
+    }catch(e){ sm.textContent="A busca falhou. Clique no mapa no lugar certo, ou pule."; } };
+  el.style.display="block";
+}
+function filaDefine(lat,lon){ const f=imp.fila[imp.i]; if(!f) return; aprender(f.tipo,f.nome,lat,lon); imp.i++; filaMostra(); }
+function filaFim(){
+  $("impbar").style.display="none"; document.body.classList.toggle("adding",!!modo);
+  if(imp.tipo==="alunos"){ filaFimAlunos(); return; }
+  let ok=0; const fora=[];
+  imp.itens.forEach((it,i)=>{
+    const L = it.lat!==undefined ? it : acharLugar(it.ref,it.bairro);
+    if(!L){ fora.push(`Linha ${it.n}: lugar pulado (${it.bairro||it.ref})`); return; }
+    const iguais=RESP.filter(x=>x.sec===it.sec&&chave(x.texto)===chave(it.texto));
+    const r={id:String(Date.now())+"-"+i,sec:it.sec,lat:L.lat,lon:L.lon,texto:iguais.length?grafia(iguais):it.texto,porque:it.porque};
+    if(it.bairro) r.bairro=nomeCerto("bairro",it.bairro); if(it.rua) r.rua=it.rua; if(it.ref) r.ref=nomeCerto("ref",it.ref); if(it.semLugar) r.semLugar=true;
+    RESP.push(r); vis[r.sec]=true; ok++; });
+  const erros=imp.erros.concat(fora); imp=null;
+  salvar(); renderResp();
+  if(erros.length){
+    $("ibTit").textContent="Importação concluída";
+    $("ibTxt").innerHTML=`<p><b>${ok}</b> resposta(s) importada(s). <b style="color:#c92a2a">${erros.length} linha(s) ficaram de fora:</b></p>`+listaHTML(erros)+`<p>Corrija essas linhas na planilha e importe de novo: as que já entraram não se repetem.</p>`;
+    $("ibOk").style.display="none"; $("ibCancel").textContent="Fechar"; $("impbox").style.display="block";
+  } else toast(`${ok} resposta(s) importada(s) da planilha`,5000);
+}
+let impTipo="resp";
+const chaveAluno = a => [chave(a.bairro||""),chave(a.rua||""),chave(a.ref||"")].join("|");
+function interpretarAlunos(rows){   // planilha de alunos: bairro, rua, ponto de referência (uma linha por aluno)
+  rows=rows.filter(r=>r.some(c=>String(c).trim()!=="")); if(rows.length<2) throw new Error("a planilha está vazia");
+  const H=rows[0].map(chave);
+  const col=(...ns)=>{ for(const n of ns){ const i=H.indexOf(n); if(i>=0) return i; } for(const n of ns){ const i=H.findIndex(h=>h.startsWith(n)); if(i>=0) return i; } return -1; };
+  if(col("resposta")>=0) throw new Error("esta parece ser a planilha de respostas. Use o botão Importar planilha da seção de respostas");
+  const c={bairro:col("bairro"),rua:col("rua","endereco"),ref:col("ponto de referencia","referencia","ponto"),lat:col("latitude","lat"),lon:col("longitude","lon","lng")};
+  if(c.bairro<0&&c.ref<0) throw new Error("a primeira linha precisa ter a coluna “bairro” ou “ponto de referência”");
+  const num=t=>parseFloat(String(t).replace(",","."));
+  const itens=[], erros=[]; let exemplos=0;
+  rows.slice(1).forEach((r,i)=>{ const g=k=>k>=0?String(r[k]==null?"":r[k]).trim():"", n=i+2;
+    const it={n,bairro:g(c.bairro),rua:g(c.rua),ref:g(c.ref)};
+    if(/^exemplo/i.test(it.bairro)||/^exemplo/i.test(it.ref)){ exemplos++; return; }
+    const la=num(g(c.lat)), lo=num(g(c.lon));
+    if(isFinite(la)&&isFinite(lo)&&Math.abs(la-ESCOLA.lat)<1&&Math.abs(lo-ESCOLA.lon)<1){ it.lat=la; it.lon=lo; }
+    if(it.lat===undefined&&!it.bairro&&!it.ref){ erros.push(`Linha ${n}: sem bairro nem ponto de referência`); return; }
+    itens.push(it); });
+  // dois alunos podem ter o mesmo endereço aproximado; só ficam de fora as linhas que já foram importadas antes
+  const ja=new Map(); ALUNOS.forEach(a=>{ const k=chaveAluno(a); ja.set(k,(ja.get(k)||0)+1); });
+  const novos=[]; let dups=0;
+  itens.forEach(it=>{ const k=chaveAluno(it); if(ja.get(k)>0){ ja.set(k,ja.get(k)-1); dups++; } else novos.push(it); });
+  const fila=[];
+  novos.forEach(it=>{ if(it.lat!==undefined||acharLugar(it.ref,it.bairro)) return;
+    const f=it.bairro?{tipo:"bairro",nome:it.bairro}:{tipo:"ref",nome:it.ref};
+    const e=fila.find(x=>x.tipo===f.tipo&&chave(x.nome)===chave(f.nome)); if(e) e.n++; else fila.push({...f,n:1}); });
+  return {itens:novos,erros,dups,exemplos,fila,i:0,ativa:false,pulados:0,cand:null};
+}
+function filaFimAlunos(){
+  let ok=0; const fora=[];
+  imp.itens.forEach((it,i)=>{
+    const L = it.lat!==undefined ? it : acharLugar(it.ref,it.bairro);
+    if(!L){ fora.push(`Linha ${it.n}: lugar pulado (${it.bairro||it.ref})`); return; }
+    const a={id:String(Date.now())+"-a"+i,lat:L.lat,lon:L.lon};
+    if(it.bairro) a.bairro=nomeCerto("bairro",it.bairro); if(it.rua) a.rua=it.rua; if(it.ref) a.ref=nomeCerto("ref",it.ref);
+    ALUNOS.push(a); ok++; });
+  const erros=imp.erros.concat(fora); imp=null; verAlunos=true;
+  salvar(); renderAlunos();
+  if(erros.length){
+    $("ibTit").textContent="Importação concluída";
+    $("ibTxt").innerHTML=`<p><b>${ok}</b> aluno(s) importado(s). <b style="color:#c92a2a">${erros.length} linha(s) ficaram de fora:</b></p>`+listaHTML(erros)+`<p>Corrija essas linhas na planilha e importe de novo: as que já entraram não se repetem.</p>`;
+    $("ibOk").style.display="none"; $("ibCancel").textContent="Fechar"; $("impbox").style.display="block";
+  } else toast(`${ok} aluno(s) importado(s) da planilha`,5000);
+}
+function baixarModeloAlunos(){
+  const L=[["bairro","rua","ponto de referência"],
+           ["EXEMPLO — apague esta linha","","uma linha por aluno, sem nome"],
+           ["EXEMPLO — apague esta linha","Rua de exemplo","a rua é opcional"]];
+  baixar(new Blob(["﻿"+L.map(l=>l.map(c=>`"${c}"`).join(";")).join("\r\n")],{type:"text/csv;charset=utf-8"}),"modelo-alunos.csv");
+  toast("Modelo baixado: uma linha por aluno, sem nome");
+}
+function exportarCSVAlunos(){
+  if(!ALUNOS.length){ toast("Ainda não há alunos registrados"); return; }
+  const L=[["Bairro","Rua","Ponto de referência","Quadrante","x (km)","y (km)","Latitude","Longitude"]];
+  [...ALUNOS].sort((a,b)=>quadrante(a)-quadrante(b)||chave(a.bairro||"").localeCompare(chave(b.bairro||""))).forEach(a=>{
+    const x=(a.lon-ESCOLA.lon)*KX, y=(a.lat-ESCOLA.lat)*KY;
+    L.push([a.bairro||"",a.rua||"",a.ref||"",quadrante(a),x.toFixed(2).replace(".",","),y.toFixed(2).replace(".",","),a.lat.toFixed(5),a.lon.toFixed(5)]); });
+  baixar(new Blob(["﻿"+L.map(l=>l.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(";")).join("\r\n")],{type:"text/csv;charset=utf-8"}),"alunos-braganca.csv");
+  toast("Planilha de alunos baixada (abre no Excel)");
+}
+function baixarModelo(){
+  const L=[["bairro","rua","ponto de referência","categoria","resposta","porquê"],
+           ["Perpétuo Socorro","","Escola Leandro Lobão","verde","EXEMPLO — apague esta linha","categoria: verde, azul, amarelo ou laranja"],
+           ["Morro","Rua de exemplo","","amarelo","EXEMPLO — apague esta linha","a rua e o porquê são opcionais"]];
+  baixar(new Blob(["﻿"+L.map(l=>l.map(c=>`"${c}"`).join(";")).join("\r\n")],{type:"text/csv;charset=utf-8"}),"modelo-respostas.csv");
+  toast("Modelo baixado: abra no Excel, preencha e importe");
+}
+
+// ---------- banner 120 × 90 cm (4000 × 3000 px) — um mapa por cor + rankings ----------
+let gerando=false;
+async function gerarBanner(){
+  if(gerando) return; gerando=true;
+  if(!RESP.length){ toast("Ainda não há respostas registradas"); gerando=false; return; }
+  toast("Gerando o banner… aguarde (pode levar até 1 minuto)",60000);
+  const W=4000,H=3000,MS=1200, INK="#14213d", FONTE='"Segoe UI",system-ui,sans-serif';
+  const host=document.createElement("div"); host.style.cssText=`position:fixed;left:-99999px;top:0;width:${MS}px;height:${MS}px`; document.body.appendChild(host);
+  let m2=null;
+  try{
+    const sat=satOn();
+    m2=new maplibregl.Map({container:host,style:estilo(sat,1.4),bounds:box(ALL),fitBoundsOptions:{padding:30},interactive:false,attributionControl:false,preserveDrawingBuffer:true,pixelRatio:1,fadeDuration:0,maxZoom:19});
+    await new Promise((ok,err)=>{ const t=setTimeout(()=>err(new Error("tempo esgotado ao carregar o mapa")),70000); m2.once("idle",()=>{clearTimeout(t);ok();}); });
+    const base=m2.getCanvas();
+    // Copia o mapa para uma tela comum no instante em que ele acaba de ser desenhado, e faz os tons de cinza
+    // pixel a pixel. Ler o mapa depois, ou usar o filtro pronto do navegador, sai em branco no Firefox.
+    const copia=document.createElement("canvas"); copia.width=MS; copia.height=MS; const gc=copia.getContext("2d",{willReadFrequently:true});
+    await new Promise(ok=>{ let feito=false; const pega=()=>{ if(feito) return; feito=true; gc.drawImage(base,0,0,MS,MS); ok(); };
+      m2.once("render",pega); m2.triggerRepaint(); setTimeout(pega,4000); });
+    { const im=gc.getImageData(0,0,MS,MS), d=im.data;
+      for(let i=0;i<d.length;i+=4){ let v=0.2126*d[i]+0.7152*d[i+1]+0.0722*d[i+2]; v=(v*1.1-127.5)*0.9+127.5; v=v<0?0:v>255?255:v; d[i]=d[i+1]=d[i+2]=v; }
+      gc.putImageData(im,0,0); }
+    const cv=document.createElement("canvas"); cv.width=W; cv.height=H; const g=cv.getContext("2d");
+    g.fillStyle="#fffdf8"; g.fillRect(0,0,W,H);
+    const fonte=(f,b)=>{ g.font=`${b||800} ${f}px ${FONTE}`; };
+    const texto=(s,x,y,o={})=>{
+      fonte(o.f||34,o.b); g.textAlign=o.al||"left"; g.textBaseline=o.bl||"middle";
+      if(o.halo){ g.lineJoin="round"; g.lineWidth=o.hw||9; g.strokeStyle=o.halo; g.strokeText(s,x,y); }
+      g.fillStyle=o.cor||INK; g.fillText(s,x,y);
+    };
+    const corta=(s,max,f,b)=>{ fonte(f,b); if(g.measureText(s).width<=max) return s; let t=s; while(t.length>3&&g.measureText(t+"…").width>max) t=t.slice(0,-1); return t+"…"; };
+    const bola=(x,y,r,cor,borda,lw)=>{ g.beginPath(); g.arc(x,y,r,0,Math.PI*2); g.fillStyle=cor; g.fill(); g.lineWidth=lw||5; g.strokeStyle=borda||INK; g.stroke(); };
+    const barras=(s,lista,x,y,maxW,alt,gap,f)=>{
+      const mx=lista.length?lista[0].n:1;
+      if(!lista.length){ texto("— sem respostas —",x,y+alt/2,{f,b:600,cor:"#888"}); return; }
+      lista.forEach((o,i)=>{
+        const yy=y+i*(alt+gap), w=Math.max(alt*1.2,maxW*o.n/mx);
+        g.beginPath(); g.roundRect(x,yy,w,alt,alt*0.18); g.fillStyle=SEC[s].cor; g.fill();
+        const fg=s===3?INK:"#ffffff";
+        let t=corta(o.t, maxW-20, f, 800); fonte(f,800); const tw=g.measureText(t).width;
+        if(tw+32<=w){ texto(t,x+16,yy+alt/2+2,{f,b:800,cor:fg}); texto(String(o.n),x+w+18,yy+alt/2+2,{f:f+2,b:900,cor:"#333"}); }
+        else { texto(t,x+w+16,yy+alt/2+2,{f,b:800,cor:INK}); texto(String(o.n),x+w+16+tw+18,yy+alt/2+2,{f:f+2,b:900,cor:"#333"}); }
+      });
+    };
+
+    // ---- título
+    texto("JUVENTUDE E DIREITO À CIDADE · EEEFM LEANDRO LOBÃO DA SILVEIRA · BRAGANÇA-PA",W/2,60,{f:32,b:800,al:"center",cor:"#6b6b6b"});
+    texto("Nossa cidade, nossos direitos",W/2,155,{f:112,b:900,al:"center"});
+    texto(`${RESP.length} respostas dos estudantes · cada bolha é um lugar citado · bolha maior = mais vezes citado · a escola é a origem (0, 0)`,W/2,250,{f:38,b:600,al:"center",cor:"#444"});
+    g.fillStyle=INK; g.fillRect(40,295,W-80,5);
+
+    // ---- três mapas: verde, azul, amarelo
+    const PAN=[{s:1,x:40},{s:2,x:1380},{s:3,x:2720}], MY=420;
+    for(const {s,x} of PAN){
+      const mx=x+20, my=MY;
+      texto(TITB[s],x+620,365,{f:56,b:900,al:"center",cor:corTxt(s)});
+      g.save(); g.beginPath(); g.roundRect(mx,my,MS,MS,26); g.clip();
+      g.drawImage(copia,mx,my,MS,MS);
+      g.fillStyle="rgba(255,253,248,.35)"; g.fillRect(mx,my,MS,MS);
+      const P=(lon,lat)=>{ const p=m2.project([lon,lat]); return [mx+p.x*MS/base.clientWidth, my+p.y*MS/base.clientHeight]; };
+      for(const q of [1,2,3,4]){ const [nx,ny]=P(ESCOLA.lon+nOff[q][0]*D,ESCOLA.lat+nOff[q][1]*D); texto(String(q),nx,ny,{f:230,b:900,al:"center",cor:"rgba(20,33,61,.16)"}); }
+      g.strokeStyle=INK; g.lineWidth=5;
+      let [a,b]=P(ESCOLA.lon,ESCOLA.lat-D), [c,d]=P(ESCOLA.lon,ESCOLA.lat+D); g.beginPath(); g.moveTo(a,b); g.lineTo(c,d); g.stroke();
+      [a,b]=P(ESCOLA.lon-D,ESCOLA.lat); [c,d]=P(ESCOLA.lon+D,ESCOLA.lat); g.beginPath(); g.moveTo(a,b); g.lineTo(c,d); g.stroke();
+      const marcas=[];   // distâncias nos eixos, de 1 em 1 km, como na tela
+      for(let i=-2;i<=2;i++){ if(!i) continue;
+        let [tx,ty]=P(ESCOLA.lon+i/KX,ESCOLA.lat); bola(tx,ty,8,"#ffffff",INK,4); texto(`${i} km`,tx,ty+30,{f:24,b:900,al:"center",halo:"#ffffff",hw:7}); marcas.push({x:tx-48,y:ty-12,w:96,h:58});
+        [tx,ty]=P(ESCOLA.lon,ESCOLA.lat+i/KY); bola(tx,ty,8,"#ffffff",INK,4); texto(`${i} km`,tx+18,ty,{f:24,b:900,halo:"#ffffff",hw:7}); marcas.push({x:tx-12,y:ty-16,w:112,h:32}); }
+      const [ex,ey]=P(ESCOLA.lon,ESCOLA.lat); bola(ex,ey,16,INK,"#ffffff",6);
+      texto("Escola (0, 0)",ex+24,ey-32,{f:28,b:900,halo:"#ffffff",hw:8});   // acima do eixo, para não encostar no "1 km"
+      const gs=grupos(RESP.filter(r=>r.sec===s)).map(o=>({o,xy:P(o.lon,o.lat),r:12+11*Math.sqrt(o.n)}));
+      for(let it=0;it<30;it++){ let mexeu=false;   // afasta bolhas sobrepostas (a menor sai do caminho)
+        for(let i=0;i<gs.length;i++) for(let j=i+1;j<gs.length;j++){ const A=gs[i],B=gs[j];
+          let dx=B.xy[0]-A.xy[0], dy=B.xy[1]-A.xy[1], d=Math.hypot(dx,dy), min=A.r+B.r+4;
+          if(d<min){ if(d<0.5){ dx=1; dy=-1; d=Math.SQRT2; } const k=(min-d)/d; B.xy=[B.xy[0]+dx*k,B.xy[1]+dy*k]; mexeu=true; } }
+        if(!mexeu) break; }
+      const RR=72, rcx=mx+MS-RR-24, rcy=my+MS-RR-24; rosaDosVentos(g,rcx,rcy,RR,0);   // rosa dos ventos no canto inferior direito de cada mapa
+      const ocup=[{x:ex-20,y:ey-52,w:220,h:72},{x:rcx-RR-6,y:rcy-RR-6,w:2*RR+12,h:2*RR+12},...marcas];
+      gs.forEach(z=>ocup.push({x:z.xy[0]-z.r,y:z.xy[1]-z.r,w:2*z.r,h:2*z.r}));
+      gs.forEach(z=>{ bola(z.xy[0],z.xy[1],z.r,SEC[s].cor,INK,4); texto(String(z.o.n),z.xy[0],z.xy[1]+2,{f:Math.round(z.r*0.95),b:900,al:"center",cor:s===3?INK:"#ffffff"}); });
+      const bate=r=>ocup.some(o=>r.x<o.x+o.w&&r.x+r.w>o.x&&r.y<o.y+o.h&&r.y+r.h>o.y);
+      let rot=0;
+      for(const z of gs){ if(rot>=3) break;   // só os três mais citados ganham nome no mapa
+        const t=corta(z.o.texto,520,34,900); fonte(34,900); const w=g.measureText(t).width+28, h=54, e=z.r+8, [zx,zy]=z.xy;
+        const cand=[[zx+e,zy-h/2],[zx-e-w,zy-h/2],[zx-w/2,zy-e-h],[zx-w/2,zy+e]];
+        for(const [rx,ry] of cand){ const r={x:rx,y:ry,w,h}; if(rx<mx+8||rx+w>mx+MS-8||ry<my+8||ry+h>my+MS-8||bate(r)) continue;
+          ocup.push(r); g.beginPath(); g.roundRect(rx,ry,w,h,12); g.fillStyle="#ffffff"; g.fill(); g.lineWidth=4; g.strokeStyle=SEC[s].cor; g.stroke();
+          texto(t,rx+14,ry+h/2+2,{f:34,b:900}); rot++; break; }
+      }
+      if(!gs.length) texto("Nenhum lugar marcado no mapa",mx+MS/2,my+MS/2,{f:40,b:700,al:"center",cor:"#777",halo:"#ffffff"});
+      g.restore();
+      g.beginPath(); g.roundRect(mx,my,MS,MS,26); g.lineWidth=5; g.strokeStyle=SEC[s].cor; g.stroke();
+      // ranking embaixo do mapa
+      barras(s,maisCitados(s,5),mx,MY+MS+50,980,60,16,32);
+      if(RESP.some(r=>r.sec===s&&r.semLugar)) texto("O ranking inclui as respostas sem lugar fixo no mapa.",mx,MY+MS+50+5*76+22,{f:24,b:600,cor:"#666"});
+    }
+
+    // ---- oportunidades (laranja): só ranking
+    const Y2=2160;
+    g.fillStyle=INK; g.fillRect(40,Y2-40,W-80,4);
+    texto(TITB[4],60,Y2+30,{f:56,b:900,cor:SEC[4].cor});
+    texto("Não são lugares: por isso aparecem em ranking, sem mapa.",60,Y2+88,{f:26,b:600,cor:"#666"});
+    barras(4,maisCitados(4,6),60,Y2+130,1500,72,16,36);
+
+    // ---- tabela por quadrante + leitura
+    const c=conta(), XT=2140;
+    texto("Respostas por quadrante",XT,Y2+30,{f:56,b:900});
+    const cx=s=>XT+520+200*(s-1), ct=XT+1360;
+    let y=Y2+120;
+    for(const s of [1,2,3,4]) bola(cx(s),y,24,SEC[s].cor,INK,5);
+    texto("Total",ct,y,{f:34,b:900,al:"center"}); y+=72;
+    for(const q of [1,2,3,4]){
+      g.fillStyle=q%2?"#f3eee0":"#fffdf8"; g.fillRect(XT,y-34,1480,68);
+      texto(`${Q[q].nome} · ${Q[q].dir.split(" ")[0]}`,XT+14,y,{f:32,b:900,cor:COR[q]});
+      for(const s of [1,2,3,4]) texto(String(c[q][s]),cx(s),y,{f:38,b:700,al:"center"});
+      texto(String([1,2,3,4].reduce((a,s)=>a+c[q][s],0)),ct,y,{f:38,b:900,al:"center"});
+      y+=68;
+    }
+    y+=30;
+    texto("Como ler:",XT,y,{f:32,b:900}); y+=46;
+    for(const q of [1,2,3,4]){
+      const uso=c[q][1]+c[q][2], falta=c[q][3]+c[q][4]; if(!uso&&!falta) continue;
+      const frase = falta>uso ? "mais respostas de falta (amarelo e laranja) do que de uso (verde e azul)"
+                  : falta<uso ? "mais respostas de uso (verde e azul) do que de falta (amarelo e laranja)"
+                  : "respostas de uso e de falta em número igual";
+      texto(corta(`Quadrante ${q}: ${frase}.`,1480,28,600),XT,y,{f:28,b:600,cor:"#333"}); y+=40;
+    }
+    texto(`UNAMA · Curso de Direito · Extensão (APIEXT II) · 2026  ·  ${sat?"Imagens: Esri":"Mapa: Esri, HERE, Garmin, © OpenStreetMap"}`,W/2,H-28,{f:24,b:600,al:"center",cor:"#666"});
+
+    const blob=await new Promise(ok=>cv.toBlob(ok,"image/png"));
+    if(!blob) throw new Error("o navegador não conseguiu gerar a imagem");
+    baixar(blob,"banner-braganca-120x90cm.png");
+    toast("Banner baixado (PNG 4000 × 3000 px, para 120 × 90 cm)",6000);
+  }catch(err){
+    console.error(err); toast("Não consegui gerar o banner: "+err.message,7000);
+  }finally{
+    if(m2) m2.remove(); host.remove(); gerando=false;
+  }
+}
+
+// Rosa dos ventos dos banners. ang = para onde o norte aponta no papel (radianos, 0 = para cima, sentido horário).
+function rosaDosVentos(g,cx,cy,R,ang){
+  const INK="#14213d", VERM="#e03131";
+  g.save(); g.translate(cx,cy);
+  g.beginPath(); g.arc(0,0,R,0,Math.PI*2); g.fillStyle="rgba(255,255,255,.93)"; g.fill(); g.lineWidth=Math.max(3,R*0.05); g.strokeStyle=INK; g.stroke();
+  g.rotate(ang||0); g.lineJoin="round";
+  const ponta=(a,comp,larg,c1,c2)=>{ g.save(); g.rotate(a);
+    g.beginPath(); g.moveTo(0,-comp); g.lineTo(-larg,0); g.lineTo(0,0); g.closePath(); g.fillStyle=c1; g.fill();
+    g.beginPath(); g.moveTo(0,-comp); g.lineTo(larg,0); g.lineTo(0,0); g.closePath(); g.fillStyle=c2; g.fill();
+    g.beginPath(); g.moveTo(0,-comp); g.lineTo(-larg,0); g.lineTo(larg,0); g.closePath(); g.lineWidth=Math.max(2,R*0.022); g.strokeStyle=INK; g.stroke(); g.restore(); };
+  for(const a of [1,3,5,7]) ponta(a*Math.PI/4,R*0.36,R*0.11,"#9aa3b2","#d5d9e0");      // pontas menores (NE, SE, SO, NO)
+  for(const a of [1,2,3]) ponta(a*Math.PI/2,R*0.6,R*0.14,INK,"#ffffff");                // L, S, O
+  ponta(0,R*0.6,R*0.14,VERM,"#f3a3a3");                                                 // N em vermelho
+  g.beginPath(); g.arc(0,0,R*0.07,0,Math.PI*2); g.fillStyle="#ffffff"; g.fill(); g.lineWidth=Math.max(2,R*0.025); g.strokeStyle=INK; g.stroke();
+  g.textAlign="center"; g.textBaseline="middle"; g.font=`900 ${Math.round(R*0.27)}px "Segoe UI",system-ui,sans-serif`;
+  [["N",0,VERM],["L",1,INK],["S",2,INK],["O",3,INK]].forEach(([t,i,cor])=>{ const a=i*Math.PI/2;
+    g.save(); g.translate(Math.sin(a)*R*0.79,-Math.cos(a)*R*0.79); g.rotate(-(ang||0)); g.fillStyle=cor; g.fillText(t,0,R*0.02); g.restore(); });   // letras sempre em pé
+  g.restore();
+}
+
+// ---------- banner da distribuição da turma (4000 × 3000 px) ----------
+// Desenha o mapa fora da tela e devolve uma cópia em canvas comum. A cópia é feita dentro do evento "render":
+// ler o mapa depois disso sai em branco no Firefox com aceleração de vídeo.
+async function capturaMapa(MS,padding,k,bb,cam){   // cam = {center,zoom,pitch,bearing}: copia a câmera (vista 3D) em vez de enquadrar uma área
+  const host=document.createElement("div"); host.style.cssText=`position:fixed;left:-99999px;top:0;width:${MS}px;height:${MS}px`; document.body.appendChild(host);
+  const sat=satOn();
+  const m2=new maplibregl.Map({container:host,style:estilo(sat,k),...(cam?{center:cam.center,zoom:cam.zoom,pitch:cam.pitch,bearing:cam.bearing,maxPitch:75}:{bounds:box(bb||ALL),fitBoundsOptions:{padding}}),interactive:false,attributionControl:false,preserveDrawingBuffer:true,pixelRatio:1,fadeDuration:0,maxZoom:19});
+  const fim=()=>{ m2.remove(); host.remove(); };
+  try{
+    await new Promise((ok,err)=>{ const t=setTimeout(()=>err(new Error("tempo esgotado ao carregar o mapa")),70000); m2.once("idle",()=>{clearTimeout(t);ok();}); });
+    const base=m2.getCanvas(), copia=document.createElement("canvas"); copia.width=MS; copia.height=MS;
+    // willReadFrequently deixa a cópia fora da placa de vídeo; sem isso o Firefox copia o mapa em branco
+    const gc=copia.getContext("2d",{willReadFrequently:true});
+    await new Promise(ok=>{ let feito=false; const pega=()=>{ if(feito) return; feito=true; gc.drawImage(base,0,0,MS,MS); ok(); };
+      m2.once("render",pega); m2.triggerRepaint(); setTimeout(pega,4000); });
+    const P=(lon,lat)=>{ const p=m2.project([lon,lat]); return [p.x*MS/base.clientWidth,p.y*MS/base.clientHeight]; };
+    // na vista inclinada, um ponto atrás da câmera pode cair "dentro" da imagem por engano: vis() diz se ele está mesmo na área vista
+    const lim=m2.getBounds(), vis=(lon,lat)=>!cam||(lon>=lim.getWest()&&lon<=lim.getEast()&&lat>=lim.getSouth()&&lat<=lim.getNorth());
+    return {copia,P,sat,fim,vis,tilt:!!cam,bearing:cam?cam.bearing:0};
+  }catch(e){ fim(); throw e; }
+}
+async function gerarBannerAlunos(recorte){   // recorte=true: imprime a área que está na tela, e não a área calculada
+  if(gerando) return;
+  if(!ALUNOS.length){ toast("Ainda não há alunos registrados"); return; }
+  gerando=true; toast("Gerando o banner da distribuição… aguarde (pode levar até 1 minuto)",60000);
+  const W=4000,H=3000,MS=2740,MX=40,MY=220, INK="#14213d", VERM="#e03131", FONTE='"Segoe UI",system-ui,sans-serif';
+  let cap=null;
+  try{
+    // Banner normal: o mapa cresce até caber todo aluno que more a até uns 50 km da escola (zona rural incluída).
+    // Banner do recorte: a área que está na tela agora. Quem ficar fora do mapa entra numa nota na coluna da direita.
+    const LIM=0.45, perto=ALUNOS.filter(a=>Math.abs(a.lat-ESCOLA.lat)<=LIM&&Math.abs(a.lon-ESCOLA.lon)<=LIM);
+    let bb, margem=130;
+    let cam=null;
+    if(recorte&&(map.getPitch()>1||Math.abs(map.getBearing())>1)){   // mapa inclinado ou girado: o banner copia a câmera da tela
+      const c=map.getCenter(), t=map.getCanvas();
+      cam={center:[c.lng,c.lat],zoom:map.getZoom()+Math.log2(MS/Math.max(t.clientWidth,t.clientHeight)),pitch:map.getPitch(),bearing:map.getBearing()}; }
+    else if(recorte){ const v=map.getBounds(); bb=[v.getWest(),v.getSouth(),v.getEast(),v.getNorth()]; margem=0; }
+    else bb=[Math.min(ALL[0],...perto.map(a=>a.lon)),Math.min(ALL[1],...perto.map(a=>a.lat)),Math.max(ALL[2],...perto.map(a=>a.lon)),Math.max(ALL[3],...perto.map(a=>a.lat))];
+    cap=await capturaMapa(MS,margem,3,bb,cam);
+    const cv=document.createElement("canvas"); cv.width=W; cv.height=H; const g=cv.getContext("2d");
+    g.fillStyle="#fffdf8"; g.fillRect(0,0,W,H);
+    const fonte=(f,b)=>{ g.font=`${b||800} ${f}px ${FONTE}`; };
+    const texto=(s,x,y,o={})=>{ fonte(o.f||34,o.b); g.textAlign=o.al||"left"; g.textBaseline="middle";
+      if(o.halo){ g.lineJoin="round"; g.lineWidth=o.hw||9; g.strokeStyle=o.halo; g.strokeText(s,x,y); }
+      g.fillStyle=o.cor||INK; g.fillText(s,x,y); };
+    const corta=(s,max,f,b)=>{ fonte(f,b); if(g.measureText(s).width<=max) return s; let t=s; while(t.length>3&&g.measureText(t+"…").width>max) t=t.slice(0,-1); return t+"…"; };
+    const bola=(x,y,r,cor,borda,lw)=>{ g.beginPath(); g.arc(x,y,r,0,Math.PI*2); g.fillStyle=cor; g.fill(); g.lineWidth=lw||5; g.strokeStyle=borda||INK; g.stroke(); };
+    const etiqueta=(s,x,y,o={})=>{ const f=o.f||34; fonte(f,900); const w=g.measureText(s).width+f*0.9, h=f*1.5;
+      g.beginPath(); g.roundRect(x-w/2,y-h/2,w,h,f*0.3); g.fillStyle=o.bg||"#ffffff"; g.fill(); g.lineWidth=5; g.strokeStyle=o.borda||INK; g.stroke();
+      texto(s,x,y+2,{f,b:900,al:"center",cor:o.fg||INK}); return {x:x-w/2,y:y-h/2,w,h}; };
+
+    // ---- título
+    const n=ALUNOS.length;
+    texto("JUVENTUDE E DIREITO À CIDADE · EEEFM LEANDRO LOBÃO DA SILVEIRA · BRAGANÇA-PA",MX,48,{f:30,b:800,cor:"#6b6b6b"});
+    texto("Onde moram os estudantes da turma",MX,128,{f:100,b:900});
+    g.fillStyle=INK; g.fillRect(MX,196,W-2*MX,5);
+
+    // ---- mapa
+    g.save(); g.beginPath(); g.roundRect(MX,MY,MS,MS,26); g.clip();
+    g.drawImage(cap.copia,MX,MY,MS,MS);
+    g.fillStyle="rgba(255,253,248,.22)"; g.fillRect(MX,MY,MS,MS);
+    const P=(lon,lat)=>{ const p=cap.P(lon,lat); return [MX+p[0],MY+p[1]]; };
+    const ocup=[], bate=r=>ocup.some(o=>r.x<o.x+o.w&&r.x+r.w>o.x&&r.y<o.y+o.h&&r.y+r.h>o.y);
+    const rotular=(s,x,y,raio,f,o)=>{   // tenta abaixo, à direita, à esquerda, acima; desiste se não couber
+      fonte(f,900); const caixa=o&&o.caixa, w=g.measureText(s).width+(caixa?28:0), h=f*(caixa?1.55:1.15), e=raio+10;
+      for(const [rx,ry] of [[x-w/2,y+e],[x+e,y-h/2],[x-e-w,y-h/2],[x-w/2,y-e-h]]){ const r={x:rx,y:ry,w,h};
+        if(rx<MX+12||rx+w>MX+MS-12||ry<MY+12||ry+h>MY+MS-12||bate(r)) continue; ocup.push(r);
+        if(caixa){ g.beginPath(); g.roundRect(rx,ry,w,h,12); g.fillStyle="#ffffff"; g.fill(); g.lineWidth=4; g.strokeStyle=o.cor; g.stroke(); texto(s,rx+14,ry+h/2+2,{f,b:900}); }
+        else texto(s,rx,ry+h/2,{f,b:800,cor:o&&o.cor||INK,halo:"#ffffff"});
+        return true; }
+      return false; };
+    // Tudo abaixo se ajusta à escala do mapa (pxkm = pixels por quilômetro), porque a área impressa pode ser a cidade ou o município inteiro.
+    const naArea=(lon,lat,m)=>{ if(!cap.vis(lon,lat)) return false; const [x,y]=P(lon,lat); return x>=MX+m&&x<=MX+MS-m&&y>=MY+m&&y<=MY+MS-m; };
+    const dentro=a=>naArea(a.lon,a.lat,20), noMapa=ALUNOS.filter(dentro), longe=ALUNOS.length-noMapa.length;
+    const [ex,ey]=P(ESCOLA.lon,ESCOLA.lat), pkm=P(ESCOLA.lon+1/KX,ESCOLA.lat), pxkm=Math.max(1,Math.hypot(pkm[0]-ex,pkm[1]-ey)), escolaNoMapa=naArea(ESCOLA.lon,ESCOLA.lat,40);
+    // eixos até a borda do mapa: fora do quadrado colorido o quadrante continua valendo
+    let tr=null;
+    if(cap.tilt){   // vista 3D: os eixos seguem o chão, ponto a ponto, só no trecho visto pela câmera
+      const eixo=f=>{ const pts=[]; for(let t=-60;t<=60;t+=0.1){ const [lo,la]=f(t); pts.push(cap.vis(lo,la)?P(lo,la):null); } return pts; };
+      tr=[eixo(t=>[ESCOLA.lon+t/KX,ESCOLA.lat]),eixo(t=>[ESCOLA.lon,ESCOLA.lat+t/KY])];
+      for(const [cor,lw] of [["rgba(255,255,255,.8)",24],[INK,12]]){ g.strokeStyle=cor; g.lineWidth=lw; g.lineCap="round"; g.beginPath();
+        tr.forEach(pts=>{ for(let i=1;i<pts.length;i++){ const a=pts[i-1], b=pts[i]; if(a&&b&&Math.hypot(a[0]-b[0],a[1]-b[1])<MS){ g.moveTo(a[0],a[1]); g.lineTo(b[0],b[1]); } } });
+        g.stroke(); } g.lineCap="butt";
+    } else
+    for(const [cor,lw] of [["rgba(255,255,255,.8)",24],[INK,12]]){ g.strokeStyle=cor; g.lineWidth=lw; g.beginPath(); g.moveTo(MX,ey); g.lineTo(MX+MS,ey); g.moveTo(ex,MY); g.lineTo(ex,MY+MS); g.stroke(); }
+    const fq=Math.max(70,Math.min(520,pxkm*D*KX*0.42));
+    for(const q of [1,2,3,4]){ const [x,y]=P(ESCOLA.lon+nOff[q][0]*D,ESCOLA.lat+nOff[q][1]*D); g.globalAlpha=0.3; texto(String(q),x,y,{f:fq,b:900,al:"center",cor:COR[q],halo:"#ffffff",hw:Math.max(6,fq*0.035)}); g.globalAlpha=1; }
+    const passo=[1,2,5,10,20,50].find(p=>p*pxkm>=260)||100;   // marcas de distância: de 1 em 1 km na cidade, mais espaçadas no mapa afastado
+    for(let j=1;j<=60;j++) for(const i of [j*passo,-j*passo]){
+      let [x,y]=P(ESCOLA.lon+i/KX,ESCOLA.lat);
+      if(x>MX+260&&x<MX+MS-260&&y>MY+20&&y<MY+MS-70){ bola(x,y,12,"#ffffff",INK,6); texto(`${i} km`,x,y+42,{f:28,al:"center",halo:"#ffffff"}); ocup.push({x:x-55,y:y-16,w:110,h:80}); }
+      [x,y]=P(ESCOLA.lon,ESCOLA.lat+i/KY);
+      if(x>MX+20&&x<MX+MS-150&&y>MY+120&&y<MY+MS-120){ bola(x,y,12,"#ffffff",INK,6); texto(`${i} km`,x+26,y,{f:28,halo:"#ffffff"}); ocup.push({x:x-16,y:y-20,w:130,h:40}); } }
+    if(cap.tilt) EIXOS_LBL.forEach(([t,lo,la])=>{ if(naArea(lo,la,90)){ const [x,y]=P(lo,la); ocup.push(etiqueta(t,x,y,{f:38})); } });   // na vista 3D os nomes dos eixos ficam nas pontas deles
+    else if(ex>MX+130&&ex<MX+MS-130){ ocup.push(etiqueta(EIXOS_LBL[0][0],ex,MY+64,{f:38})); ocup.push(etiqueta(EIXOS_LBL[1][0],ex,MY+MS-64,{f:38})); }
+    if(!cap.tilt&&ey>MY+70&&ey<MY+MS-70){ ocup.push(etiqueta(EIXOS_LBL[2][0],MX+MS-140,ey,{f:38})); ocup.push(etiqueta(EIXOS_LBL[3][0],MX+140,ey,{f:38})); }
+    { // rosa dos ventos no canto inferior direito do mapa; se um eixo passar por ali, vai para o canto superior direito
+      const R=118, rx=MX+MS-R-46, livre=cy=>{ const x0=rx-R-30, x1=rx+R+30, y0=cy-R-30, y1=cy+R+30;
+        return tr ? !tr.some(pts=>pts.some(p=>p&&p[0]>x0&&p[0]<x1&&p[1]>y0&&p[1]<y1)) : !((ey>y0&&ey<y1)||(ex>x0&&ex<x1)); };
+      const ry=[MY+MS-R-46,MY+R+46].find(livre)||MY+MS-R-46;
+      rosaDosVentos(g,rx,ry,R,-cap.bearing*Math.PI/180); ocup.push({x:rx-R-10,y:ry-R-10,w:2*R+20,h:2*R+20}); }
+    if(escolaNoMapa){ bola(ex,ey,26,INK,"#ffffff",9);
+      ocup.push({x:ex-32,y:ey-32,w:64,h:64}); ocup.push(etiqueta(`${ESCOLA.nome} (0, 0)`,ex,ey+74,{f:40,bg:INK,fg:"#ffffff",borda:"#ffffff"})); }
+    // grupos de alunos: junta quem ficaria a menos de uns 45 pixels no papel e afasta os círculos que se sobrepõem
+    const gs=gruposAlunos(Math.max(0.12,45/pxkm),noMapa).map(o=>({o,xy:P(o.lon,o.lat),r:26+17*Math.sqrt(o.n)}));
+    const fixos=escolaNoMapa?[[ex,ey,34],[ex-190,ey+74,44],[ex,ey+74,44],[ex+190,ey+74,44]]:[];   // a escola e o nome dela não saem do lugar
+    for(let it=0;it<40;it++){ let mexeu=false;
+      for(const B of gs) for(const [fx,fy,fr] of fixos){ let dx=B.xy[0]-fx, dy=B.xy[1]-fy, d=Math.hypot(dx,dy), min=fr+B.r+6;
+        if(d<min){ if(d<0.5){ dx=-1; dy=-1; d=Math.SQRT2; } const kk=(min-d)/d; B.xy=[B.xy[0]+dx*kk,B.xy[1]+dy*kk]; mexeu=true; } }
+      for(let i=0;i<gs.length;i++) for(let j=i+1;j<gs.length;j++){ const A=gs[i],B=gs[j];
+        let dx=B.xy[0]-A.xy[0], dy=B.xy[1]-A.xy[1], d=Math.hypot(dx,dy), min=A.r+B.r+6;
+        if(d<min){ if(d<0.5){ dx=1; dy=-1; d=Math.SQRT2; } const kk=(min-d)/d; B.xy=[B.xy[0]+dx*kk,B.xy[1]+dy*kk]; mexeu=true; } }
+      if(!mexeu) break; }
+    const refs=pxkm>=90 ? PONTOS.filter(p=>naArea(p.lon,p.lat,14)).map(p=>({p,xy:P(p.lon,p.lat)})) : [];   // no mapa muito afastado os pontos de referência só atrapalham
+    gs.forEach(z=>ocup.push({x:z.xy[0]-z.r,y:z.xy[1]-z.r,w:2*z.r,h:2*z.r}));
+    refs.forEach(o=>ocup.push({x:o.xy[0]-14,y:o.xy[1]-14,w:28,h:28}));
+    refs.forEach(o=>{ const [x,y]=o.xy; g.beginPath(); g.roundRect(x-11,y-11,22,22,5); g.fillStyle="#5c677d"; g.fill(); g.lineWidth=4; g.strokeStyle="#ffffff"; g.stroke(); });
+    gs.forEach(z=>{ bola(z.xy[0],z.xy[1],z.r,VERM,"#ffffff",8); g.beginPath(); g.arc(z.xy[0],z.xy[1],z.r+4,0,Math.PI*2); g.lineWidth=3; g.strokeStyle=INK; g.stroke();
+      texto(String(z.o.n),z.xy[0],z.xy[1]+3,{f:Math.round(z.r*0.95),b:900,al:"center",cor:"#ffffff"}); });
+    gs.forEach(z=>{ if(z.o.bairro) rotular(corta(z.o.bairro,560,36,900),z.xy[0],z.xy[1],z.r+4,36,{caixa:true,cor:VERM}); });
+    if(pxkm>=220) refs.forEach(o=>rotular(o.p.nome,o.xy[0],o.xy[1],14,26,{cor:"#3d4658"}));
+    texto((cap.sat?"Imagens: Esri":"Mapa: Esri, HERE, Garmin, © OpenStreetMap")+(cap.tilt?" · vista inclinada (3D)":""),MX+20,MY+MS-24,{f:22,b:600,cor:"#444",halo:"#ffffff",hw:6});
+    g.restore();
+    g.beginPath(); g.roundRect(MX,MY,MS,MS,26); g.lineWidth=6; g.strokeStyle=INK; g.stroke();
+
+    // ---- coluna da direita
+    const x0=MX+MS+60, LW=W-x0-50; let y=340;
+    fonte(230,900); const wn=g.measureText(String(n)).width;
+    texto(String(n),x0,y,{f:230,b:900,cor:VERM});
+    texto(n===1?"estudante":"estudantes",x0+wn+28,y-36,{f:60,b:900});
+    texto(longe?`${n-longe} neste mapa`:"no mapa",x0+wn+28,y+38,{f:44,b:600,cor:"#444"});
+    y=520; g.fillStyle=INK; g.fillRect(x0,y,LW,5); y+=70;
+    texto("Por quadrante",x0,y,{f:52,b:900}); y+=80;
+    const c=contaAlunos(), mq=Math.max(1,...[1,2,3,4].map(q=>c[q])), BW=LW-250;
+    for(const q of [1,2,3,4]){
+      texto(`Quadrante ${q} · ${Q[q].dir.split(" ")[0]}`,x0,y,{f:34,b:900,cor:COR[q]}); y+=46;
+      const w=Math.max(8,BW*c[q]/mq); g.beginPath(); g.roundRect(x0,y-20,w,40,8); g.fillStyle=COR[q]; g.fill();
+      texto(`${c[q]}`,x0+w+18,y+2,{f:40,b:900}); fonte(40,900); const wc=g.measureText(String(c[q])).width;
+      texto(`${Math.round(100*c[q]/n)}%`,x0+w+18+wc+16,y+2,{f:30,b:600,cor:"#555"}); y+=64;
+    }
+    y+=30; g.fillStyle=INK; g.fillRect(x0,y,LW,5); y+=70;
+    texto("Por bairro",x0,y,{f:52,b:900}); y+=76;
+    const {lista,sem}=bairrosAlunos(), mb=lista.length?lista[0].n:1, MAXB=16;
+    if(!lista.length){ texto("Nenhum bairro informado.",x0,y,{f:30,b:600,cor:"#777"}); y+=56; }
+    lista.slice(0,MAXB).forEach(o=>{ const w=Math.max(54,(LW-110)*o.n/mb), t=corta(o.t,LW-140,30,800); fonte(30,800); const tw=g.measureText(t).width;
+      g.beginPath(); g.roundRect(x0,y-22,w,44,8); g.fillStyle=VERM; g.fill();
+      if(tw+30<=w){ texto(t,x0+14,y+2,{f:30,b:800,cor:"#ffffff"}); texto(String(o.n),x0+w+16,y+2,{f:34,b:900}); }
+      else { texto(t,x0+w+14,y+2,{f:30,b:800}); texto(String(o.n),x0+w+14+tw+16,y+2,{f:34,b:900,cor:VERM}); }
+      y+=56; });
+    const resto=lista.slice(MAXB).reduce((a,o)=>a+o.n,0);
+    if(resto){ texto(`Outros bairros: ${resto}`,x0,y+4,{f:28,b:700,cor:"#555"}); y+=46; }
+    if(sem){ texto(`Sem bairro informado: ${sem}`,x0,y+4,{f:28,b:700,cor:"#555"}); y+=46; }
+    if(longe){ texto(`${recorte?"Fora do recorte deste mapa":"Moram fora da área deste mapa"}: ${longe}`,x0,y+4,{f:28,b:700,cor:"#555"}); y+=46; }
+    y=Math.max(y+40,H-420); g.fillStyle=INK; g.fillRect(x0,y,LW,5); y+=56;
+    texto("Como ler",x0,y,{f:34,b:900}); y+=50;
+    ["Cada círculo vermelho reúne os estudantes que moram","perto daquele ponto; o número diz quantos são.","A posição é aproximada (bairro ou ponto de referência).","Não há nomes nem endereços individuais.","A escola é a origem (0, 0) dos quatro quadrantes."]
+      .forEach(l=>{ texto(l,x0,y,{f:27,b:600,cor:"#333"}); y+=38; });
+    texto("UNAMA · Curso de Direito · Extensão (APIEXT II) · 2026",x0,H-40,{f:24,b:600,cor:"#666"});
+
+    const blob=await new Promise(ok=>cv.toBlob(ok,"image/png"));
+    if(!blob) throw new Error("o navegador não conseguiu gerar a imagem");
+    baixar(blob,recorte?"banner-distribuicao-alunos-recorte-120x90cm.png":"banner-distribuicao-alunos-120x90cm.png");
+    toast("Banner da distribuição baixado (PNG 4000 × 3000 px, para 120 × 90 cm)"+(longe?` — ${longe} aluno(s) ficaram fora do mapa`:""),7000);
+  }catch(err){
+    console.error(err); toast("Não consegui gerar o banner: "+err.message,7000);
+  }finally{
+    if(cap) cap.fim(); gerando=false;
+  }
+}
+
+// ---------- botões e teclado ----------
+$("bAll").onclick=()=>setFocus(0);
+$("bReveal").onclick=()=>{hidden=!hidden;applyState();};
+$("bSat").onclick=toggleSat;
+$("b3d").onclick=()=>set3d(!is3d);
+$("bOrbit").onclick=()=>orbit?stopOrbit():startOrbit();
+$("bEarth").onclick=abrirEarth;
+$("bProj").onclick=toggleProj;
+$("bEdit").onclick=toggleEdit;
+$("bCopy").onclick=copyJSON;
+$("bKml").onclick=exportarKML;
+$("bCsv").onclick=exportarCSV;
+$("bBanner").onclick=gerarBanner;
+$("bSave").onclick=salvarCopia;
+$("bLoad").onclick=()=>{ copiaModo="abrir"; $("fileIn").click(); };
+$("bJunta").onclick=()=>{ if(imp&&imp.ativa){ toast("Termine ou cancele a importação primeiro"); return; } copiaModo="juntar"; $("fileIn").click(); };
+$("bForm").onclick=abrirForm;
+$("bModelo").onclick=baixarModelo;
+$("bImp").onclick=()=>{ if(imp&&imp.ativa){ toast("Já há uma importação em andamento"); return; } if(modo) setModo(modo); fecharCaixas(); impTipo="resp"; $("sheetIn").click(); };
+$("bAluImp").onclick=()=>{ if(imp&&imp.ativa){ toast("Já há uma importação em andamento"); return; } if(modo) setModo(modo); fecharCaixas(); impTipo="alunos"; $("sheetIn").click(); };
+$("bAluMapa").onclick=()=>setModo("aluno");
+$("bAluForm").onclick=abrirAlunoForm;
+$("bAluVer").onclick=()=>{ verAlunos=!verAlunos; renderAlunos(); };
+$("bAluModelo").onclick=baixarModeloAlunos;
+$("bAluCsv").onclick=exportarCSVAlunos;
+$("bAluBanner").onclick=()=>gerarBannerAlunos(false);
+$("bAluBannerTela").onclick=()=>gerarBannerAlunos(true);
+addEventListener("keydown",e=>{
+  if(e.ctrlKey||e.metaKey||e.altKey) return;
+  if(e.target.tagName==="INPUT") return;   // digitando numa caixa
+  const k=e.key.toLowerCase();
+  if(marcando && k==="escape"){ marcando=false; document.body.classList.toggle("adding",!!modo); $(cx.box).style.display="block"; return; }
+  if(movendo && k==="escape"){ fimMover(); toast("Mudança cancelada"); return; }
+  if(imp&&imp.ativa) return;                // durante a importação, só o mapa e a barra respondem
+  if(k.length===1 && "01234".includes(k)) setFocus(+k);
+  else if(k==="escape"){ if(modo) setModo(modo); else { esconderQuad(); setFocus(0); } }
+  else if(k==="r"){hidden=!hidden;applyState();}
+  else if(k==="p") toggleProj();
+  else if(k==="s") toggleSat();
+  else if(k==="e") toggleEdit();
+  else if(k==="t") set3d(!is3d);
+  else if(k==="o") (orbit?stopOrbit():startOrbit());
+  else if(k==="n") northUp();
+  else if(k==="g") abrirEarth();
+  else if(k==="a") setModo("ponto");
+  else if(k==="m") setModo("resp");
+  else if(k==="i") abrirForm();
+  else if(k==="q") setModo("quad");
+});
+map.on("pitchend",()=>{ const on=map.getPitch()>5; if(on!==is3d && !orbit){ is3d=on; label3d(); } });
+renderCards(); renderResp(); renderAlunos();
+map.once("load",()=>{
+  pronto=true; build(); buildBubs(); renderAlunos(); map.resize(); map.fitBounds(box(ALL),{padding:pad(),duration:0});
+});
+addEventListener("resize",()=>map.resize());
+</script>
+</body>
+</html>
